@@ -1,0 +1,42 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF>true</UseWPF>
+    <RootNamespace>MacShell</RootNamespace>
+    <AssemblyName>MacShell</AssemblyName>
+    <ApplicationIcon>Themes\MacShell.ico</ApplicationIcon>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Compiled into the exe so the tray icon needs no file next to it. Regenerate with tools\make-icon.ps1. -->
+    <EmbeddedResource Include="Themes\MacShell.ico" LogicalName="MacShell.ico" />
+    <!-- Inter 4.1 (SIL Open Font License, see Themes\Fonts\Inter-LICENSE.txt), loaded as "./Themes/Fonts/#Inter". -->
+    <Resource Include="Themes\Fonts\*.ttf" />
+  </ItemGroup>
+
+  <!-- Publish: one self-contained MacShell.exe for 64-bit Windows, no .NET install needed. -->
+  <PropertyGroup>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <SelfContained>true</SelfContained>
+    <PublishSingleFile>true</PublishSingleFile>
+    <!-- WPF ships native DLLs (wpfgfx, PresentationNative...); this packs them into the exe too. -->
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+    <!-- Compression off on purpose: a compressed bundle is unpacked into RAM at startup (~220 MB vs ~80 MB). -->
+    <EnableCompressionInSingleFile>false</EnableCompressionInSingleFile>
+    <DebugType>embedded</DebugType>
+    <!-- WPF does not support trimming, so it stays off. -->
+    <PublishTrimmed>false</PublishTrimmed>
+  </PropertyGroup>
+
+  <!-- Low memory for an all-day background app: workstation GC without the background GC thread. -->
+  <PropertyGroup>
+    <ServerGarbageCollection>false</ServerGarbageCollection>
+    <ConcurrentGarbageCollection>false</ConcurrentGarbageCollection>
+  </PropertyGroup>
+
+</Project>

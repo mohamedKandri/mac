@@ -1,0 +1,9 @@
+# Build output (rebuild with .\publish.ps1)
+bin/
+obj/
+dist/
+
+# Editor / local settings
+.vs/
+*.user
+.claude/settings.local.json

@@ -1,0 +1,40 @@
+<!-- Line icon shapes on a 24x24 grid, taken from the design canvas SVGs (converted to absolute WPF path syntax).
+     Used with Themes/LineIcon: <t:LineIcon Data="{StaticResource Icon.Lock}" />. -->
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <!-- Logo: rounded square + solid dot -->
+    <StreamGeometry x:Key="Icon.Logo">M9,3 H15 A6,6 0 0 1 21,9 V15 A6,6 0 0 1 15,21 H9 A6,6 0 0 1 3,15 V9 A6,6 0 0 1 9,3 Z</StreamGeometry>
+    <StreamGeometry x:Key="Icon.LogoDot">M9.4,12 A2.6,2.6 0 1 0 14.6,12 A2.6,2.6 0 1 0 9.4,12 Z</StreamGeometry>
+
+    <!-- Power menu -->
+    <StreamGeometry x:Key="Icon.Lock">M6,11 H18 A2,2 0 0 1 20,13 V19 A2,2 0 0 1 18,21 H6 A2,2 0 0 1 4,19 V13 A2,2 0 0 1 6,11 Z M8,11 V7 A4,4 0 0 1 16,7 V11</StreamGeometry>
+    <StreamGeometry x:Key="Icon.Sleep">M20,14.5 A8,8 0 0 1 9.5,4 A8,8 0 1 0 20,14.5 Z</StreamGeometry>
+    <StreamGeometry x:Key="Icon.Restart">M20,11 A8,8 0 1 0 17.7,16.7 M20,4 V11 H13</StreamGeometry>
+    <StreamGeometry x:Key="Icon.Power">M12,3 V12 M6.3,6.8 A8,8 0 1 0 17.7,6.8</StreamGeometry>
+
+    <!-- MacShell's own items in the logo menu -->
+    <StreamGeometry x:Key="Icon.Reload">M20,12 A8,8 0 1 1 12,4 H16 M13,1 L16,4 L13,7</StreamGeometry>
+    <StreamGeometry x:Key="Icon.Check">M5,12 L10,17 L19,7</StreamGeometry>
+    <StreamGeometry x:Key="Icon.Quit">M10,4 H5 V20 H10 M15,8 L19,12 L15,16 M19,12 H9</StreamGeometry>
+
+    <!-- Dock trash can. Empty: open can with its lid handle. Full: no handle, lines on the can, and a SOLID crumpled
+         paper sticking out (Icon.TrashPaper, drawn as LineIcon.FillData) so the two states differ at a glance. -->
+    <StreamGeometry x:Key="Icon.Trash">M4,7 H20 M9,7 V4 H15 V7 M6,7 L7,20 H17 L18,7</StreamGeometry>
+    <StreamGeometry x:Key="Icon.TrashFull">M4,7 H20 M6,7 L7,20 H17 L18,7 M10,11 V16 M14,11 V16</StreamGeometry>
+    <StreamGeometry x:Key="Icon.TrashPaper">M7.5,6.5 C7,3.5 9.5,2 11,3.5 C12.5,1.5 15.5,2.5 15.5,4.5 C17,4.5 17.5,6 16.5,6.5 Z</StreamGeometry>
+
+    <!-- Calendar month arrows -->
+    <StreamGeometry x:Key="Icon.ChevronLeft">M15,5 L8,12 L15,19</StreamGeometry>
+    <StreamGeometry x:Key="Icon.ChevronRight">M9,5 L16,12 L9,19</StreamGeometry>
+
+    <!-- Wi-Fi: three arcs + a solid dot; "off" adds a slash -->
+    <StreamGeometry x:Key="Icon.Wifi">M2,9 A15,15 0 0 1 22,9 M5.5,12.5 A10,10 0 0 1 18.5,12.5 M9,16 A5,5 0 0 1 15,16</StreamGeometry>
+    <StreamGeometry x:Key="Icon.WifiDot">M11,19.5 A1,1 0 1 0 13,19.5 A1,1 0 1 0 11,19.5 Z</StreamGeometry>
+    <StreamGeometry x:Key="Icon.WifiOff">M2,9 A15,15 0 0 1 22,9 M5.5,12.5 A10,10 0 0 1 18.5,12.5 M9,16 A5,5 0 0 1 15,16 M3,3 L21,21</StreamGeometry>
+
+    <!-- Volume: speaker with 0, 1 or 2 waves, or a cross when muted -->
+    <StreamGeometry x:Key="Icon.VolumeMute">M11,5 L6,9 H3 V15 H6 L11,19 Z M16,9 L22,15 M22,9 L16,15</StreamGeometry>
+    <StreamGeometry x:Key="Icon.VolumeOff">M11,5 L6,9 H3 V15 H6 L11,19 Z</StreamGeometry>
+    <StreamGeometry x:Key="Icon.VolumeLow">M11,5 L6,9 H3 V15 H6 L11,19 Z M15.5,9 A4,4 0 0 1 15.5,15</StreamGeometry>
+    <StreamGeometry x:Key="Icon.VolumeHigh">M11,5 L6,9 H3 V15 H6 L11,19 Z M15.5,9 A4,4 0 0 1 15.5,15 M18.5,6.5 A8,8 0 0 1 18.5,17.5</StreamGeometry>
+</ResourceDictionary>

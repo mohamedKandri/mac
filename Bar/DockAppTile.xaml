@@ -1,0 +1,16 @@
+<!-- One app in the dock: its own icon at tile size, and a dot underneath while it runs (dock step 3). -->
+<UserControl x:Class="MacShell.Bar.DockAppTile"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Button x:Name="Button" Style="{StaticResource Shell.DockTile}" Click="OnClick">
+        <StackPanel>
+            <!-- RenderTransformOrigin 0.5,1: the press bounce squashes towards the bottom, like it's pushed in. -->
+            <Image x:Name="Icon" RenderOptions.BitmapScalingMode="HighQuality" RenderTransformOrigin="0.5,1">
+                <Image.RenderTransform>
+                    <ScaleTransform x:Name="Bounce" />
+                </Image.RenderTransform>
+            </Image>
+            <Ellipse x:Name="Dot" Width="3" Height="3" Margin="0,2,0,0" Fill="{DynamicResource Theme.Foreground}" Opacity="0" />
+        </StackPanel>
+    </Button>
+</UserControl>

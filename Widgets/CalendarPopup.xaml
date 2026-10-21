@@ -1,0 +1,68 @@
+<!-- Month calendar under the clock (design canvas: 300 wide, 16 padding, today in a selection-colored circle).
+     Keys: Left/Right = previous/next month, Home = back to today, Esc = close. -->
+<w:PopupWindow x:Class="MacShell.Widgets.CalendarPopup"
+               xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+               xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+               xmlns:w="clr-namespace:MacShell.Widgets"
+               xmlns:t="clr-namespace:MacShell.Themes"
+               Title="MacShell Calendar">
+    <Border Background="{DynamicResource Theme.PanelFill}" Padding="16" Width="300">
+        <StackPanel>
+            <!-- Header: "October 2026"   [<] [>] -->
+            <DockPanel Margin="0,0,0,12">
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                    <Button Style="{StaticResource Shell.IconButton}" Click="OnPrevious" ToolTip="Previous month" Margin="0,0,4,0">
+                        <t:LineIcon Data="{StaticResource Icon.ChevronLeft}" Width="14" Height="14" />
+                    </Button>
+                    <Button Style="{StaticResource Shell.IconButton}" Click="OnNext" ToolTip="Next month">
+                        <t:LineIcon Data="{StaticResource Icon.ChevronRight}" Width="14" Height="14" />
+                    </Button>
+                </StackPanel>
+                <!-- Clicking the title jumps back to the current month. -->
+                <TextBlock x:Name="MonthTitle" FontSize="15" FontWeight="SemiBold" VerticalAlignment="Center"
+                           Cursor="Hand" MouseLeftButtonUp="OnTitleClick" ToolTip="Back to today" />
+            </DockPanel>
+
+            <!-- Weekday letters. UniformGrid Columns=7 = seven equal columns, like a 7-column grid in Compose. -->
+            <ItemsControl x:Name="Weekdays">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <UniformGrid Columns="7" />
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <TextBlock Text="{Binding}" Height="26" FontSize="11" FontWeight="Medium" TextAlignment="Center"
+                                   Padding="0,6,0,0" Foreground="{DynamicResource Theme.Muted}" />
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
+            <!-- Days. Each item is a CalendarDay; the DataTemplate is how one day looks (like an item composable). -->
+            <ItemsControl x:Name="Days">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <UniformGrid Columns="7" />
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate DataType="{x:Type w:CalendarDay}">
+                        <Grid Height="34">
+                            <Border x:Name="Circle" Width="32" Height="32" CornerRadius="16" Background="Transparent">
+                                <TextBlock x:Name="Label" Text="{Binding Label}" FontSize="13"
+                                           HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            </Border>
+                        </Grid>
+                        <DataTemplate.Triggers>
+                            <DataTrigger Binding="{Binding IsToday}" Value="True">
+                                <Setter TargetName="Circle" Property="Background" Value="{DynamicResource Theme.Selection}" />
+                                <Setter TargetName="Label" Property="Foreground" Value="White" />
+                                <Setter TargetName="Label" Property="FontWeight" Value="SemiBold" />
+                            </DataTrigger>
+                        </DataTemplate.Triggers>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </StackPanel>
+    </Border>
+</w:PopupWindow>

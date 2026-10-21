@@ -1,0 +1,225 @@
+# MacShell
+
+Personal Windows 11 app that adds a macOS-style menu bar (and later a dock), similar to Rainmeter. Only for the owner: no installer, no settings UI.
+
+## Stack
+- C# + WPF on .NET 8 (`net8.0-windows`), Windows 11
+- Published as one self-contained `MacShell.exe` (win-x64, PublishSingleFile)
+- Runs in the background with a tray icon; single instance
+- Everything configurable lives in `config.json` next to the exe (hot-reloaded)
+- Budget: under 80 MB RAM, near-zero idle CPU
+
+## Folder structure
+- `Core/`: config, tray icon, app lifecycle
+- `Native/`: every P/Invoke and Windows API wrapper. **No Windows API calls anywhere else.**
+- `Widgets/`: one class + XAML per bar item (shared later by the dock)
+- `Bar/`: the menu bar window (hosts the widgets)
+- `Themes/`: resource dictionaries for colors, fonts, icons
+- `tools/`: helper scripts (icon generator, `check-appbar.ps1`)
+- `.claude/skills/`: project skills. Read the matching one before working in that area:
+  - `windows-appbar`: screen-space reservation, DPI, monitors, fullscreen, gotchas
+  - `widget-pattern`: adding a bar/dock widget, popups, icons, verification
+  - `config-schema`: config.json keys, validation, hot-reload, adding a key
+- `dist/`: publish output (generated)
+
+## Coding conventions
+- File-scoped namespaces (`namespace MacShell.Core;`), nullable enabled
+- Every Windows API call in `Native/` gets a comment explaining what it does and why
+- The owner is new to C#/WPF (knows Kotlin/Compose, React/TS, Python): comment non-obvious WPF concepts briefly, with an analogy when it helps
+- Each widget is self-contained behind a common interface so the dock can reuse it
+- Invalid config must never crash the app: keep the last valid config and show a tray notification
+- No polling loops where an OS event exists (idle CPU budget)
+
+## Widgets (pattern)
+- A widget = `Widgets/<Name>Widget.xaml` (UserControl) + `.xaml.cs` implementing `IWidget` (`View => this`, `Dispose`)
+- Register it in `Widgets/WidgetRegistry.cs`: `["type"] = new((ctx, entry) => new XWidget(entry), new() { ["key"] = Bool/Text }, Validate)`
+- Settings = extra keys in its config entry, read with `entry.GetBool/GetString`. Unknown keys and wrong JSON kinds are rejected by the registry at load time; `Validate` does deeper checks (e.g. the clock format)
+- OS access goes through a Native wrapper class with a C# `Changed` event raised on the UI thread (`Battery`, `Wifi`, `Audio`, `SystemEvents`, `ForegroundWatcher`); widgets never see raw messages or HRESULTs
+- No polling: each widget updates from OS notifications (the clock schedules its next tick at the next minute boundary)
+- Colors only through `{DynamicResource Theme.*}`; buttons use the `Shell.*` styles in `Themes/Controls.xaml`; icons use `t:LineIcon` + geometries in `Themes/Icons.xaml`
+- Dropdowns derive from `Widgets/PopupWindow` (glass, rounded, 150 ms motion, closes on click-away/Esc). A bar item opens one through `Widgets/PopupToggle` (toggle on click, keeps the item highlighted via `Tag="open"`, `alignRight` for right-side items)
+- The bar rebuilds widgets only when `bar.left` / `bar.right` change
+
+## Build and run
+The .NET 8 SDK is installed per-user in `%LOCALAPPDATA%\Microsoft\dotnet` (on the user PATH; open a new terminal after install).
+- Run in debug: `dotnet run`
+- Publish the exe: `.\publish.ps1` → `dist\MacShell.exe` (it stops a running MacShell first, since the exe is locked while running)
+- First run writes a full default `config.json` next to the exe
+- Developer switch: `MacShell.exe --open power-menu`, `--open calendar` or `--open dock-hover` opens that popup / magnifies the 2nd dock tile at startup (for screenshots and load-error checks without a mouse)
+
+## Config (config.json)
+- Model: `Core/AppConfig.cs` (every key has a default; a file only needs the keys it changes)
+- Parse + validate: `Core/ConfigLoader.cs` (`Parse` never throws; returns config or a one-line error)
+- Load / watch / debounce: `Core/ConfigService.cs` (events fire on the UI thread)
+- Top level: `theme` (auto|dark|light), `font` {family, size}, `bar` {height, monitors (primary|all), left[], right[]}, `colors` {dark{}, light{}}
+- Widget entry: `{ "type": "clock", "enabled": true, ...widget-specific keys }`
+- Colors are WPF hex: `#RRGGBB` or `#AARRGGBB` (alpha first)
+- `//` comments and trailing commas are allowed
+
+## Design (approved 2026-10-21)
+Source of truth: the MacShell Design canvas (https://claude.ai/artifact/2rKcXnsLE8sWhvpW1SaUfG).
+- Bar 24 px (was 32 in the canvas; compacted 2026-10-21 to match macOS), square and flush to the screen edges (rounding only on popups), frosted acrylic, 1 px bottom hairline
+- Inter 13 px (embedded), app name SemiBold; 10 px side padding, 18 px between right items
+- Thin line icons, 2 px stroke, 16 px; accent `#5B9DFF`, selection `#2F6FD6`
+- Popups: 12–14 px corners, frosted, soft shadow; motion 150 ms fade + 4 px slide
+- Theme resources: XAML uses `{DynamicResource Theme.*}` keys from `Themes/ThemeManager.cs` (`ThemeKeys`); never hard-code colors in widgets
+
+## Steps (milestone 1: menu bar)
+1. Project setup and single-file publish — done
+2. Tray icon and single instance — done
+3. Config loading with hot-reload — done
+4. AppBar window with reserved space — done (reservation verified by the owner, not by Claude: see the sandbox gotcha)
+5. Blur, rounded look and theming — done
+6. Left side: logo dropdown and active app name — done (the power menu is built here; step 8 = calendar + popup polish)
+7. Right side widgets: clock, battery, Wi-Fi, volume — done
+8. Popups: calendar, power menu — done
+9. Multi-monitor, fullscreen hiding, polish — done (real multi-monitor and DPI changes not yet tested on hardware)
+10. Project skills: windows-appbar, widget-pattern, config-schema — done (`.claude/skills/`)
+
+**Milestone 1 is complete.** Next: milestone 2, the dock (start from the widget-pattern and windows-appbar skills).
+
+## Milestone 2: the dock (design approved 2026-10-21)
+Look (from the canvas): centered panel 14 px above the bottom edge, 22 px radius, frosted like the bar, soft shadow +
+hairline ring; padding 10/12/8; 10 px between tiles; 52 px tiles showing each app's **own Windows icon**; 4 px running
+dot under the tile; a hairline divider, then Trash.
+
+Behavior (owner's choices):
+- Windows taskbar: **changed 2026-10-21 at the owner's request: MacShell hides the taskbar** while it runs (`dock.hideTaskbar`, default true) and restores it on Quit, crash and clean-quit signal. (Before: "the owner sets auto-hide; MacShell never changes taskbar settings".)
+- Space: the dock **reserves** its height (AppBar on the bottom edge): gap + panel only, ~115 px at 125%. (Changed 2026-10-21: the magnification headroom is no longer reserved; magnified tiles float over the window bottom while hovering, like macOS.)
+- Apps: **pinned** (config.json order) + **running, not pinned** after them. Dot = running. Click: running → bring its window to the front (restore if minimized), click again → next window of that app; not running → launch.
+- Hover: macOS magnification (hovered 68 px, neighbours ~60 px, following the mouse), with the app name above the hovered tile.
+- Defaults I chose (not asked, easy to change): Trash opens the Recycle Bin and shows empty/full; files dropped on it go to the Recycle Bin (never permanently deleted). No right-click menus and no drag-to-reorder: pinning is edited in config.json (no settings UI, per the project rules).
+
+Steps:
+1. Dock window: bottom-edge AppBar (extend `AppBar` with an edge), frosted panel, reserved space with headroom, per monitor via the manager — done
+2. Pinned apps from config + real icons (exe / shortcut icon extraction) + launching — done
+3. Running apps: window tracking (events, no polling), dots, click to focus / cycle / restore — done
+4. Magnification + app name label — done
+5. Trash tile (Recycle Bin state, open, drop to recycle) — done
+6. Fullscreen / multi-monitor integration, RAM check, update the three skills — done
+
+**Milestone 2 (the dock) is complete.**
+
+## Decisions made
+- 2026-10-21 · SDK 8.0.426 installed per-user via Microsoft's `dotnet-install.ps1` (no admin, no winget on this machine).
+- 2026-10-21 · Publish settings live in `MacShell.csproj` so a plain `dotnet publish -c Release` produces the single exe.
+- 2026-10-21 · `IncludeNativeLibrariesForSelfExtract` on: WPF's native DLLs get packed into the exe (otherwise they sit next to it).
+- 2026-10-21 · Single-file compression OFF. Measured: compressed = 68 MB exe but 224 MB working set (bundle unpacked into RAM); uncompressed = 154 MB exe, 120 MB working set / 74 MB private. RAM matters more than disk here.
+- 2026-10-21 · Measure RAM as **private bytes** (Task Manager "Memory" column): the working set also counts the exe's shared, memory-mapped pages.
+- 2026-10-21 · No trimming: WPF doesn't support it.
+- 2026-10-21 · Workstation GC with concurrent GC off, to keep RAM low for an all-day app.
+- 2026-10-21 · `MainWindow` was a temporary step-1 test window; removed in step 2. The app has no main window (`ShutdownMode=OnExplicitShutdown`).
+- 2026-10-21 · Tray icon via raw `Shell_NotifyIcon` (Native/NotifyIcon.cs), not WinForms' NotifyIcon: no second UI framework in memory, and the menu is a WPF `ContextMenu` that can be styled like the bar later.
+- 2026-10-21 · Tray messages go to a hidden normal window (HwndSource, no WS_VISIBLE), not a message-only window: message-only windows miss the `TaskbarCreated` broadcast, so the icon wouldn't come back after Explorer restarts.
+- 2026-10-21 · The tray menu calls `SetForegroundWindow` on its own popup when it opens; without this, it stays open when you click elsewhere.
+- 2026-10-21 · Single instance = named mutex `Local\MacShell.SingleInstance`; the second launch calls `Shutdown()` with no message.
+- 2026-10-21 · "Start with Windows" = value `MacShell` under `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` holding the quoted exe path. The menu checkmark is read fresh each time and only shows ticked if it points at the current exe.
+- 2026-10-21 · Icon: generated by `tools\make-icon.ps1` (accent rounded square + white dot, PNG frames 16–256 px) and embedded in the exe; the tray picks the frame matching `SM_CXSMICON`.
+- 2026-10-21 · Measured after step 2: 64 MB private RAM, 0 ms CPU over 10 s idle.
+- 2026-10-21 · Config defaults live in C# (`AppConfig`), not in a template file; the default `config.json` is generated from them, so the two can't drift.
+- 2026-10-21 · Unknown keys are errors (`JsonUnmappedMemberHandling.Disallow`) so typos like `heigth` get reported, except inside widget entries, where extra keys are widget settings (`[JsonExtensionData]`).
+- 2026-10-21 · `colors.dark` / `colors.light` use `JsonObjectCreationHandling.Populate`: given keys merge into the default palette instead of replacing it.
+- 2026-10-21 · Hot reload: FileSystemWatcher (Changed + Created + Renamed, since editors save differently) → 300 ms debounce on the UI thread → skip if the text is identical → parse. Reads use FileShare.ReadWrite|Delete and retry 5×50 ms because editors briefly lock the file.
+- 2026-10-21 · On a bad config: keep `Current`, show a warning toast from the tray. A deleted or locked file is ignored silently during hot reload, and reported only on the manual "Reload config".
+- 2026-10-21 · Gotcha: `"dark": null` makes System.Text.Json throw InvalidOperationException, not JsonException. `ConfigLoader.Parse` catches every exception for that reason. Found by a 19-case parser test.
+- 2026-10-21 · Notifications use the tray balloon (`NIF_INFO`), shown as a toast on Windows 11, and suppressed by Do not disturb.
+- 2026-10-21 · Measured after step 3: 65 MB private RAM, 0 ms CPU over 10 s idle.
+- 2026-10-21 · **Sandbox gotcha:** Claude's shell runs sandboxed. It can't see `explorer.exe` or `Shell_TrayWnd`, so `SHAppBarMessage` returns 0 for everything there (a minimal WinForms AppBar fails the same way). Test reservation, the tray and toasts on the owner's real desktop with `tools\check-appbar.ps1`. Window position, styles, RAM and CPU *can* be checked from the sandbox.
+- 2026-10-21 · Per-monitor DPI v2 via `app.manifest`. AppBar math is in physical pixels: `px = round(configHeight * monitorDpi / 96)` (32 → 40 px at 125%).
+- 2026-10-21 · New `Bar/` folder for the bar window (not listed in the original structure; keeps Core for config/tray/lifecycle).
+- 2026-10-21 · AppBar flow (Native/AppBar.cs): ABM_NEW → QUERYPOS on the full `rcMonitor` → force our height → SETPOS → SetWindowPos(HWND_TOPMOST, SWP_NOACTIVATE). Re-dock on ABN_POSCHANGED, WM_DISPLAYCHANGE, WM_DPICHANGED (deferred until after WPF has handled it), and TaskbarCreated (re-register).
+- 2026-10-21 · If ABM_NEW fails (e.g. MacShell starts before Explorer at sign-in), the bar is still placed on top without reserved space, a tray warning is shown, and TaskbarCreated retries the registration.
+- 2026-10-21 · No focus steal / no Alt+Tab: `WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE`, set in SourceInitialized before the window is shown, plus `ShowActivated=False`. Verified exstyle 0x8000088.
+- 2026-10-21 · Crash path: DispatcherUnhandledException + AppDomain.UnhandledException → ABM_REMOVE, tray icon delete, append to `crash.log` next to the exe. The app still exits. A hard kill (Task Manager) can't run any code.
+- 2026-10-21 · Without glass yet, the bar background's alpha is forced to 255 (a semi-transparent color on a non-layered window renders over black). Step 5 replaces this.
+- 2026-10-21 · Removed "taskkill without /f = quit": taskkill posts WM_CLOSE to every top-level window, including WPF's internal hidden ones, which leaves the process half shut down. Quit from the tray; scripts use a hard kill.
+- 2026-10-21 · publish.ps1 publishes to `obj\publish-stage`, then copies the exe with retries: right after MacShell exits, something (likely antivirus) holds the exe for a few seconds.
+- 2026-10-21 · Measured after step 4: **79 MB private RAM** (bar window ≈ +14 MB), 0 ms CPU over 10 s idle. Right at the 80 MB budget: look at ReadyToRun / GC conserve-memory settings in step 9.
+- 2026-10-21 · Owner choices: design canvas approved as-is; bar corners square/flush; font = Inter embedded in the exe.
+- 2026-10-21 · Inter 4.1 static TTFs (Regular, Medium, SemiBold) from the official rsms/inter GitHub release, in `Themes/Fonts` as WPF `<Resource>`. Not the variable font: WPF only renders a variable font's default instance. WPF sees one family "Inter" with 3 weights. `ThemeManager.BuildFont` maps the name "Inter" in `font.family` to `./Themes/Fonts/#Inter`; other names are installed fonts.
+- 2026-10-21 · Blur uses the undocumented `SetWindowCompositionAttribute` + `ACCENT_ENABLE_ACRYLICBLURBEHIND`, tinted with `colors.*.background` (0xAABBGGRR). Not the documented `DWMWA_SYSTEMBACKDROP_TYPE`: system backdrops turn flat whenever the window is inactive, and the bar is never active.
+- 2026-10-21 · Glass needs three things: `CompositionTarget.BackgroundColor = Transparent`, `DwmExtendFrameIntoClientArea(-1)`, and a transparent WPF fill (`Theme.BarFill`). Without the middle one, transparent pixels render black.
+- 2026-10-21 · Windows' "Transparency effects" off → accent disabled and the fill becomes the opaque palette color.
+- 2026-10-21 · Theme `auto` reads `AppsUseLightTheme` (HKCU…\Themes\Personalize); a hidden window (Native/SystemTheme) listens for `WM_SETTINGCHANGE "ImmersiveColorSet"` to switch live. Live switching is not yet verified (it would mean changing the owner's Windows settings).
+- 2026-10-21 · Bar sets `DWMWCP_DONOTROUND` and `UseLayoutRounding=True` (1 DIP hairline = crisp 1 px at 125%).
+- 2026-10-21 · Screenshots of the bar strip *do* work from the sandbox (`CopyFromScreen`), so visuals can be checked even though Explorer can't be reached.
+- 2026-10-21 · Measured after step 5: 75 MB private RAM.
+- 2026-10-21 · Owner choice: power actions confirm inline (the row becomes "Restart now? [Cancel] [Restart]"; Esc cancels, Enter confirms).
+- 2026-10-21 · Widget system: `IWidget` + `WidgetRegistry` + `WidgetContext` (host window, theme, notify). `ConfigLoader.Parse` takes `WidgetRegistry.Check` as a delegate, so Core doesn't depend on Widgets (the parser stays testable alone). Unbuilt types (wifi, battery, volume, clock) are valid in config but create nothing until step 7.
+- 2026-10-21 · Popups are separate `Window`s, not WPF `Popup`s: a Popup is a layered window, so no DWM rounded corners/shadow and unreliable blur. Popups use DWM's own rounding (fixed ~8 px on Windows 11, not the canvas's 12–14 px) and DWM's border.
+- 2026-10-21 · Popups are tool windows that DO activate (unlike the bar), so `Deactivated` = clicked elsewhere = close. `SafeClose` guards against the second Close() that deactivation triggers. Clicking the logo while the menu is open toggles it closed: the bar never takes focus, so the menu isn't deactivated first.
+- 2026-10-21 · Popup motion animates the content only (opacity + 4 px slide, 150 ms, cubic ease-out). The glass and shadow appear instantly: a non-layered window has no window-level opacity.
+- 2026-10-21 · Active app: `SetWinEventHook(EVENT_SYSTEM_FOREGROUND, WINEVENT_OUTOFCONTEXT | WINEVENT_SKIPOWNPROCESS)`, so our popups don't count as an app switch. Name = exe FileDescription (cached per path); `explorer` → "File Explorer"; UWP frame windows resolved to the child process. Taskbar, Start and Search are ignored (keep the previous name). The hook delegate is kept in a field so the GC can't free it.
+- 2026-10-21 · Power: `LockWorkStation`, `SetSuspendState(false,false,false)`, `ExitWindowsEx` after enabling `SeShutdownPrivilege`. Shut down uses `EWX_HYBRID_SHUTDOWN` (fast startup, like the Start menu). Failures → toast.
+- 2026-10-21 · Sandbox testing: posted WM_LBUTTON* messages don't press WPF buttons (WPF reads the real mouse state), hence the `--open` switch. Screen capture fails ("handle is invalid") while the PC is locked.
+- 2026-10-21 · Measured after step 6: 81–89 MB private RAM, **over the 80 MB budget**; 0 ms idle CPU.
+- 2026-10-21 · **Memory fix: ~80–90 MB → 50 MB private bytes (24 MB private working set = Task Manager "Memory").**
+  - Cause: WPF's GPU rendering loads the Intel driver stack (igc64, igd9*, media_bin, D3D9/11), and the driver allocates ~30 MB of private buffers. `RenderOptions.ProcessRenderMode = SoftwareOnly` (App.OnStartup, before any window) cut ~30 MB. Glass, popups and text render identically (checked by screenshot). Revisit only if animations stutter.
+  - One-time compacting `GC.Collect` at ApplicationIdle after startup: removes a random +13 MB (uncollected startup garbage) that about one launch in three showed. 4/4 launches at 50 MB afterwards.
+  - Tried with no effect (±1 MB, within noise): TieredPGO=0, GCgen0size=4 MB, GCConserveMemory=5, TieredCompilation=0. ReadyToRun not tried: no longer needed, and it makes the exe bigger.
+  - Measure with `PrivateMemorySize64` (private bytes, the stricter number) and report private WS alongside. Use several launches: single readings vary ±13 MB.
+- 2026-10-21 · Stable over 60 s at 50.7 MB; idle CPU ≈ 0 (156 ms in 60 s while switching apps).
+- 2026-10-21 · Owner choices for step 7: Wi-Fi shows the real SSID when allowed, else the Network List Manager name; clicks open Windows' own panels (Wi-Fi → `ms-availablenetworks:`, volume → Quick Settings `ms-actioncenter:controlcenter/&showFooter=true`, battery → `ms-settings:batterysaver`); scrolling on volume = ±2% per notch.
+- 2026-10-21 · **Wi-Fi gotcha:** on Windows 11 24H2 the WLAN API (`WlanQueryInterface` current connection, and `netsh wlan`) returns ERROR_ACCESS_DENIED unless Location is on for desktop apps. It's off machine-wide on the owner's laptop (HKLM consent = Deny). Fallback = `INetworkListManager` → connection on the Wi-Fi adapter → `INetwork.GetName()`, which needs no permission. On a domain network that is the domain ("INTRA.MA"), at home usually the SSID. Signal strength isn't available without Location, so the icon has no strength levels.
+- 2026-10-21 · NLM via IDispatch (`dynamic` / PowerShell) fails on `GetAdapterId` (GUID isn't an automation type: "Value does not fall within the expected range"), so NLM uses vtable `[ComImport]` dual interfaces.
+- 2026-10-21 · Wi-Fi change events: .NET `NetworkChange.NetworkAddressChanged/AvailabilityChanged`, debounced 500 ms on the UI thread.
+- 2026-10-21 · Battery: `GetSystemPowerStatus` + `RegisterPowerSettingNotification(GUID_BATTERY_PERCENTAGE_REMAINING, GUID_ACDC_POWER_SOURCE)` on a hidden MessageWindow; also `PBT_APMPOWERSTATUSCHANGE` (charging start/stop) and resume. ≤20% on battery → `Theme.Warning` (new `colors.*.warning` key). Hidden when there's no battery. Verified updating live (66% → 65%).
+- 2026-10-21 · Volume: Core Audio COM (`IMMDeviceEnumerator` → default eRender/eMultimedia endpoint → `IAudioEndpointVolume` + `RegisterControlChangeNotify`; `IMMNotificationClient.OnDefaultDeviceChanged` rebinds). Callbacks come on COM threads → `Dispatcher.InvokeAsync`. `[PreserveSig]` everywhere so "no speakers" is a state, not an exception. Callback classes are `[ComVisible(true)]`.
+- 2026-10-21 · Clock: `DispatcherTimer` re-armed each tick for the next minute (or second, if the format has `s`), +20 ms; refreshes on `WM_TIMECHANGE` (after `TimeZoneInfo.ClearCachedData`) and on resume. Verified it ticks on the minute.
+- 2026-10-21 · Default `bar.right` changed to the canvas order: volume, wifi, battery, clock, with their settings spelled out. Existing config files keep their own order.
+- 2026-10-21 · Active app ignores `pickerhost` ("File Picker UI Host", system Open/Save dialogs).
+- 2026-10-21 · Measured after step 7: 52 MB private, 0 ms CPU over 20 s.
+- 2026-10-21 · Not testable from the sandbox: clicks (WPF ignores posted mouse input), scroll-to-change-volume, the three flyout URIs, output-device switching.
+- 2026-10-21 · Calendar (Widgets/CalendarPopup): `ItemsControl` + `UniformGrid Columns=7` + a `DataTemplate` per `CalendarDay` record, with a `DataTrigger` for today. Week start and weekday letters come from `CurrentCulture` (Monday here). Title "MMMM yyyy" with the first letter capitalized (some locales use lower case). Left/Right = month, Home or clicking the title = today, Esc = close. Days outside the month are blank (as in the canvas); the height varies with 5 or 6 rows.
+- 2026-10-21 · Popup polish: `PopupToggle` replaces per-widget open/close code (logo, clock). The bar item stays highlighted while its popup is open (`Shell.BarButton` trigger on `Tag="open"`). Right-aligned popups measure their content before `Show()`, so they appear in their final place (Loaded still corrects if the size differs).
+- 2026-10-21 · Verified by screenshot: calendar at 300 DIP wide, right edge 8 DIP from the screen edge, matching the canvas; the power menu is unchanged after the refactor. Measured 55 MB private with the calendar open.
+- 2026-10-21 · Multi-monitor: `Bar/BarManager` owns one `BarWindow` per monitor, keyed by device name ("\\.\DISPLAY1"; HMONITOR handles change on every layout change). `monitors: primary` = just the primary; `all` = every monitor, primary first. Re-synced on `WM_DISPLAYCHANGE` (500 ms debounce, plugging in sends several), on resume, and on config reload: removed monitors' bars get ABM_REMOVE + Close, new monitors get a bar. Each bar has its own widgets (and OS hooks). The primary bar serves the `--open` switch.
+- 2026-10-21 · `AppBar` takes a device name; `Position()` looks the monitor up each time (`Native/Monitors`) and does nothing if it's gone (the manager closes that bar on the same change). Also re-docks after resume.
+- 2026-10-21 · Fullscreen hiding: Explorer's `ABN_FULLSCREENAPP` plus a check on every foreground change. "Opened" → for each bar, `Monitors.IsFullscreenAppOn(device)`: the foreground window covers its monitor's whole rect, isn't a shell surface (Progman, WorkerW, Task View, Alt+Tab) and isn't ignored by `AppInfo`. "Closed" is trusted directly, since the window may still be shrinking back. Hidden bars keep their reserved space. Verified with a borderless fullscreen test window: bar hid, then came back on close.
+- 2026-10-21 · Popups are placed in physical pixels (`WindowStyles.MoveTo` in SourceInitialized, and again on Loaded), with the scale taken from the anchor's monitor. WPF Left/Top are in the units of whichever monitor the window was created on, which breaks on mixed-DPI setups.
+- 2026-10-21 · The "couldn't reserve space" warning is deferred 15 s: at sign-in MacShell may start before Explorer, and TaskbarCreated then registers it a few seconds later.
+- 2026-10-21 · Dock step 1. Owner choice: glass with Windows' own rounding (~8 px), not the canvas's 22 px, because Windows can't clip a blurred window with smooth large corners (`SetWindowRgn` is aliased; system rounding is fixed). The dock window is exactly the panel, so magnified tiles (step 4) need a separate transparent overlay window above it; their headroom is already reserved.
+- 2026-10-21 · New `Bar/ShellWindow` base for the bar and the dock: window chrome, glass + theme follow, AppBar creation, fullscreen hide, release. Subclasses give `Edge`, `ReservedThickness`, `RoundedCorners`, `TintColor` and an optional `PlaceInStrip`. An abstract base works as a XAML root (`<b:ShellWindow x:Class=...>`).
+- 2026-10-21 · `AppBar` now takes an edge (`AppBarEdge.Top/Bottom`) and an optional `StripPlacement` (reserved strip, monitor, scale → window rect, physical px). The reservation is always full width; the window can be smaller. For the bottom edge, after QUERYPOS keep the thickness from the bottom (`rc.Top = rc.Bottom - h`).
+- 2026-10-21 · Dock geometry: panel = padding 10/12/8 + tile + 8 (4 gap + 4 dot); reserved = 14 gap + panel + (magnifiedSize − tileSize) = 108 DIP by default (135 px at 125%; earlier estimate of ~106 px was wrong). Window = panel, centered on the monitor, bottom 14 DIP above the strip's bottom. Measured 95×98 px at 125% with only Trash.
+- 2026-10-21 · Config: `dock { enabled, tileSize 32..96, magnifiedSize tileSize..128 }`, new color `colors.*.dock` (dark `#731E202A`, light `#80FFFFFF`, from the canvas). BarManager owns the dock on the primary monitor: hot-plug, primary change, enable/disable, fullscreen hide (verified), crash release.
+- 2026-10-21 · Dock step 2: `dock.pinned` = list of Start-menu names ("Microsoft Edge"), app IDs (for duplicates like the two "Outlook"s) or exe/.lnk paths (env vars allowed). Default: File Explorer, Microsoft Edge, Settings. Unknown pins are skipped with one toast and suggestions ("Did you mean: …"). Existence isn't part of config validation, because that needs the shell.
+- 2026-10-21 · `Native/AppCatalog`: one mechanism for classic and Store apps, the shell's AppsFolder ("All apps"). Enumerate with `SHGetKnownFolderItem(FOLDERID_AppsFolder)` + `BHID_EnumItems`. Name = `SIGDN_NORMALDISPLAY`, parsing name = `SIGDN_PARENTRELATIVEPARSING`. Launch = ShellExecute `shell:AppsFolder\<parsing name>`. ~100 ms for 162 apps; done only when the pinned list changes.
+- 2026-10-21 · Icons: `IShellItemImageFactory.GetImage(ICONONLY | BIGGERSIZEOK)` at magnifiedSize × DPI (sharp when magnified), preferring the target exe (`System.Link.TargetParsingPath`): some Start entries have no icon of their own (Firefox showed a blank page). HBITMAP → WPF via `GetDIBits` into top-down Bgra32 (straight alpha; was wrongly Pbgra32 until the fringe fix below), because `CreateBitmapSourceFromHBitmap` loses alpha. `DeleteObject` after every icon.
+- 2026-10-21 · Gotcha: items from the AppsFolder *enumeration* sometimes lack properties (TargetParsingPath empty for Firefox) while the same item created with `SHCreateItemFromParsingName("shell:AppsFolder\…")` has them. `Resolve` re-reads the exe for pinned apps that way.
+- 2026-10-21 · Sandbox gotcha: Claude's sandbox hides some folders entirely (e.g. `AppData\Local\Mozilla Firefox`: `Test-Path` false), including from the MacShell it launches, so Firefox's icon can't be verified there. Don't "fix" code that works on the owner's desktop; verify such cases with the owner.
+- 2026-10-21 · Dock tiles: `Bar/DockAppTile` (icon at tile size, `BitmapScalingMode=HighQuality`, running dot reserved for step 3, 140 ms squash bounce on click), `Shell.DockTile` style (no hover box, magnification comes in step 4). 10 DIP between tiles; divider shown only with tiles; `Reposition()` when only the tile count changes. Measured 58–65 MB private, 0 ms idle CPU.
+- 2026-10-21 · Dock step 3: `Native/WindowTracker` lists app windows front to back using roughly the taskbar's rules (visible, top-level, not a tool window or owned popup unless `WS_EX_APPWINDOW`, not DWM-cloaked, has a title, not ours or the shell's via `AppInfo`). Hooks: `EVENT_OBJECT_DESTROY..HIDE` + `CLOAKED..UNCLOAKED`, out-of-context, skip own process. The callback only checks "top-level window object" and restarts a 250 ms debounce; then one `EnumWindows` recount. Identities are cached per hwnd. Measured: 47 ms CPU over 15 s of normal desktop use, 60–63 MB private.
+- 2026-10-21 · Window ↔ app matching: per-window app ID (`SHGetPropertyStoreForWindow`, `System.AppUserModel.ID`), else the Store package app ID (`GetApplicationUserModelId` on the process; the UWP frame is resolved to its child process), else "Microsoft.Windows.Explorer" for explorer.exe; plus the exe path. A tile owns a window if the app ID equals its parsing name, or the exe equals its ExePath. Verified: File Explorer (pinned) got its dot from a CabinetWClass window; Notepad (unpinned) got a tile that appeared and disappeared live; Claude, Teams and Chrome showed up as running.
+- 2026-10-21 · Layout: pinned | divider | running-not-pinned | divider | Trash. Running tiles keep their place while windows change z-order (no reshuffling); a tile is removed when the app's last window closes. `Reposition()` when the tile count changes.
+- 2026-10-21 · Click: `Refresh()` first (fresh state), then not running → launch; running → `Activate(front-most window)`; already in front with several windows → activate the back-most one (repeated clicks walk through all). `Activate` = restore if minimized, `SetForegroundWindow`, and `SwitchToThisWindow` if Windows refuses (focus-stealing rules). Not verifiable from the sandbox (no real clicks); `ms-settings:` launches also fail there (0x80040900).
+- 2026-10-21 · Dock step 4: magnification lives in `Bar/DockMagnifier`, a separate layered (`AllowsTransparency`), click-through (`WS_EX_TRANSPARENT`) topmost window over the dock + headroom (magnifiedSize − tileSize + 34 DIP for the label). Needed because the dock window is the glass panel and can't draw outside itself. While hovering, it draws copies of the tiles and the dock hides its own icons (after 2 frames, so nothing blinks); clicks pass through to the real tiles.
+- 2026-10-21 · Tiles grow in place (scale around their bottom center, bigger ones drawn on top), without pushing neighbours aside like macOS does, so clicks always land on the tile under the mouse. Scale = 1 + (mag/tile − 1)·cos(d / (1.8·tile) · π/2): hovered 68, neighbours ~60 at default sizes. Each frame moves 30% towards the target (smooth follow). The click bounce is replayed on the magnified copy. Tooltips on tiles were removed (the label replaces them).
+- 2026-10-21 · Animation runs on `CompositionTarget.Rendering` (like requestAnimationFrame) only while needed: paused once settled under a still mouse, resumed by MouseMove, stopped when back at normal size. The overlay is then **closed, not hidden**: a hidden layered window kept ~12 MB of pixels (74.7 → 60 MB measured).
+- 2026-10-21 · CPU gotcha: a "settled hover" measurement showed 250 ms / 5 s. A frame log showed it was the owner's real mouse moving over the dock, not a stuck loop. With the mouse elsewhere, CPU is 78 ms / 10 s (WindowTracker reacting to desktop activity). Check a frame log before "fixing" CPU numbers measured on a live desktop.
+- 2026-10-21 · Dock step 5: `Native/RecycleBin`. State = `SHQueryRecycleBinW(null)` item count (all drives). Live updates = `SHChangeNotifyRegister` on the Recycle Bin's ID list (`CSIDL_BITBUCKET`, recursive, all events) → message to a hidden `MessageWindow` → 300 ms debounce → re-query. Click = `shell:RecycleBinFolder`. Drop = `SHFileOperationW(FO_DELETE, FOF_ALLOWUNDO | FOF_WANTNUKEWARNING)` on its own STA thread: always to the Recycle Bin, with Windows' own confirmation per the owner's settings, and Windows asks before anything would be deleted permanently (network drives, too big). Errors → toast.
+- 2026-10-21 · Trash icons: `Icon.Trash` (empty, lid handle) and `Icon.TrashFull` (crumpled paper over the rim + lines); the magnifier copy follows the state. While files are dragged over it, the tile gets a 2 px selection-colored border. Only `FileDrop` data is accepted.
+- 2026-10-21 · Testing rule: the owner's Recycle Bin is never modified from the sandbox (no test recycles or empties). Only the read-only state was verified (64 items → full icon); live notifications, drop and click are for the owner to test.
+- 2026-10-21 · **Incident (owner's desktop broken):** tabs hidden under the bar, black desktop, empty black taskbar. Causes, both from Claude's testing:
+  1. `publish.ps1` killed the owner's MacShell, and Claude's test run left a **sandbox-launched MacShell** running. From the sandbox it can't register as an AppBar, so maximized windows went under the bar and dock (work area top 0 instead of 40).
+  2. Claude ran `Start-Process explorer.exe <folder>` from the sandbox during dock step 3. A shell process started there can't see the real shell, and most likely started a second, broken desktop/taskbar that left Explorer not drawing (black taskbar strip). The owner restarts Explorer from Task Manager.
+  **Rules from now on:** never start `explorer.exe` or other shell processes from the sandbox (open test windows with apps like `notepad.exe` only). Never leave a sandbox-launched MacShell running at the end of a turn: kill it and ask the owner to start `dist\MacShell.exe` from their desktop. `publish.ps1` now says when it stopped MacShell.
+  **Resolution:** restarting Explorer from Task Manager didn't help; **signing out and back in** fixed it. The owner then started MacShell and confirmed bar + dock + reserved space all fine.
+  **Correction / lesson:** while diagnosing, Claude concluded "Explorer isn't running" from `tools\diagnose.ps1` run in the app's **Terminal panel**. That panel turned out to be just as restricted as the sandbox: it reported no Explorer, no taskbar and no MacShell even after the owner confirmed all three were on screen. Also, sandbox screenshots (`CopyFromScreen`) **never include the taskbar** (always a black strip), so "black bottom strip" in a screenshot is not evidence of anything. Neither the sandbox, nor the Terminal panel, nor screenshots can see Explorer, the taskbar or an owner-launched MacShell. For those, ask the owner what they see, or have them run `tools\diagnose.ps1` from their own Windows Terminal (not Claude's panel).
+- 2026-10-21 · Dock step 6: the dock stays on the **primary monitor only**, also with `bar.monitors: all` (macOS default); it moves when the primary changes. `ShellWindow.OnHiddenForFullscreen` lets the dock close its magnifier when a fullscreen app hides it. `DockWindow.OnDpiChanged` re-renders icons at the new scale (forces `BuildTiles`) and re-places the panel. `RecycleBin` re-registers its shell notifications on `TaskbarCreated` (Explorer restarts drop them). WindowTracker hooks don't depend on Explorer.
+- 2026-10-21 · Leak check (20 forced dock rebuilds via `dock.tileSize` toggles): GDI objects flat at 64 (icon HBITMAPs are freed), handles 859 → 866, USER objects flat; private 60.7 → 72.6 peak → 66.6 MB settled (old icons are GC garbage, reclaimed later). Idle CPU 0 ms. Under the 80 MB budget with bar + dock.
+- 2026-10-21 · Sandbox note: `publish.ps1` runs in the sandbox and can't see (or stop) the owner's MacShell, so after a publish the owner should restart `dist\MacShell.exe` themselves.
+- 2026-10-21 · **Black desktop came back** after the step-6 build, this time with no Explorer launched from the sandbox. Quitting MacShell + restarting Explorer fixed it. New main suspect: MacShell itself, specifically the Recycle Bin subscription added in dock step 5 (`SHChangeNotifyRegister`, all events, recursive, interrupt level); both episodes came after it. Test build (15:22): Trash live updates removed. `RecycleBin` is now static; the dock re-checks on mouse enter and after a drop. Owner test: 15 min with MacShell closed (desktop stays normal?), then run the test build. If the desktop still goes black with it, suspect next: WindowTracker (`SHGetPropertyStoreForWindow` on every window) and AppCatalog (AppsFolder enumeration). Neither is proven yet.
+  Result 1: desktop stayed normal for 15 min with MacShell closed (points at MacShell).
+  Result 2: the test build ran "for a while" with the desktop normal. **Confirmed cause: the Recycle Bin `SHChangeNotifyRegister` subscription.** It stays removed; Trash state is checked on dock mouse-enter and after drops. Do not reintroduce shell change notifications (especially recursive / all events / interrupt level) without a long soak test on the owner's desktop. The earlier "sandbox Explorer" explanation for the first episode was probably wrong too.
+- 2026-10-21 · Trash icons: the outline-only "full" icon was too close to "empty" at 24 px (even Claude misread a screenshot). Full now = can without handle + lines + a **solid** crumpled paper (`Icon.TrashPaper` as `LineIcon.FillData`). Owner confirmed it reads as full.
+- 2026-10-21 · Owner choice after seeing a maximized window lose ~195 px (135 dock strip + 60 visible taskbar): **slimmer strip + taskbar auto-hide**. `DockWindow.ReservedThickness` = `EdgeGap + PanelHeight` (92 DIP = 115 px at 125%); the magnifier overlay still extends above the strip on its own (its headroom is unchanged). The owner turns on taskbar auto-hide in Windows Settings (MacShell never changes taskbar settings).
+- 2026-10-21 · Bug (owner screenshot): after Chrome closed, the dock kept its old width, leaving an empty tile-sized gap after Trash. Fix: `UpdateRunning` re-places the dock at `DispatcherPriority.Loaded` (after WPF's layout of the new tiles), and `PlaceInStrip` invalidates the tile panels' measure before `Measure(∞)`. Not reproduced in the sandbox (no test copies on the owner's desktop); the owner verifies.
+- 2026-10-21 · Dock width bug: a detailed log run showed correct sizes everywhere (7→6 tiles: 660→583 px, all icons present, overlay closed after every hover). The deferred `Reposition` + fresh measure is kept; the logging was removed. The owner's original gap screenshot was never fully explained; reopen with a fresh log if it comes back.
+- 2026-10-21 · **Taskbar hiding** (owner: the visible taskbar looked too big and broke the look). `Native/Taskbar`: save the original state (`ABM_GETSTATE` on `Shell_TrayWnd`) to `dist\taskbar-state.txt` only if that file doesn't exist yet (so a hard kill can't overwrite the true original), `ABM_SETSTATE(ABS_AUTOHIDE)` so it stops reserving space, then `ShowWindow(SW_HIDE)` on `Shell_TrayWnd` + every `Shell_SecondaryTrayWnd`. A `EVENT_OBJECT_SHOW` hook limited to Explorer's process re-hides it when Explorer shows it again; `TaskbarCreated` → hide the new one. `Restore` = `SW_SHOWNA` + original state + delete the file; it runs on Quit, in `OnCrash`, and on the next start/quit after a hard kill (state file present).
+- 2026-10-21 · Trade-off accepted: with the taskbar hidden, other apps' tray icons are out of reach (Win key, Win+A, Win+N, toasts, Alt+Tab still work). MacShell's own tray items (Reload config, Start with Windows, Quit MacShell) were added to the logo menu via `AppCommands`, handed to widgets as `WidgetContext.Commands`. A real tray widget is a possible later project.
+- 2026-10-21 · Clean quit signal: MacShell waits on the named event `Local\MacShell.Quit`. `publish.ps1` sets it first and hard-kills only if MacShell is still running 5 s later, so rebuilding no longer leaves the taskbar hidden or the screen space reserved.
+- 2026-10-21 · **Compact macOS proportions** (owner's macOS reference screenshot; the screen is ~1536×864 DIP at 125%, close to a MacBook's 1440×900): bar 32 → 24 (macOS standard; `Shell.BarButton` 24 → 20 high, logo 30 → 28 wide). Dock tiles 52 → 44 (magnified 68 → 60), tile gap 10 → 6, panel padding 10/12/8 → 6/8/3, running dot 4 → 3 px with a 2 px gap, edge gap 14 → 6, Trash corners scale with the tile (0.23 × size). Reserved bottom strip ≈ 64 DIP (80 px at 125%), was ~115 px. The owner's `config.json` had `bar.height: 32` written out; changed to 24 at their request. This supersedes the canvas sizes in "Design (approved)" and "Milestone 2" above.
+- 2026-10-21 · Icon quality bug (owner: icons looked "cut off, like PNGs" after the dock got smaller): `IShellItemImageFactory` pixels are **straight alpha**, but `AppCatalog.ToBitmapSource` labelled them `Pbgra32` (premultiplied), giving every soft edge a light fringe that shows more at small sizes. Fixed with `PixelFormats.Bgra32`. Confirmed with a side-by-side render (current vs straight vs 256 px). The icons were always the apps' own; only the decoding was wrong.
+- 2026-10-21 · Step 10: three project skills written from the code and this log. Every file/symbol they name was checked to exist (40/40), and the default config in config-schema was generated by `ConfigLoader.DefaultJson()`, not typed. skill-creator's subagent eval runs were skipped: the owner limited subagents to read-only research, and these are reference skills. When code changes, update the matching skill in the same step.
+- 2026-10-21 · Tested from the sandbox: fullscreen hide/show, `monitors` hot switch (1 monitor → still 1 bar), simulated WM_DISPLAYCHANGE ×3 with no crash, popup positions unchanged, 52–56 MB. Not testable here (1 monitor, can't change the owner's settings): a real second monitor, unplugging it, live DPI change, sleep/wake.

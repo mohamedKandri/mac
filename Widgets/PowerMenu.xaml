@@ -1,0 +1,70 @@
+<!-- The dropdown under the logo. Each item asks to confirm inline: its row is swapped for the Confirm panel. -->
+<w:PopupWindow x:Class="MacShell.Widgets.PowerMenu"
+               xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+               xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+               xmlns:w="clr-namespace:MacShell.Widgets"
+               xmlns:t="clr-namespace:MacShell.Themes"
+               Title="MacShell Power Menu">
+    <Border Background="{DynamicResource Theme.PanelFill}" Padding="6" Width="230">
+        <StackPanel x:Name="Items">
+            <Button x:Name="LockItem" Style="{StaticResource Shell.MenuItem}" Click="OnItemClick" Tag="Lock">
+                <StackPanel Orientation="Horizontal">
+                    <t:LineIcon Data="{StaticResource Icon.Lock}" Margin="0,0,10,0" />
+                    <TextBlock Text="Lock" VerticalAlignment="Center" />
+                </StackPanel>
+            </Button>
+            <Button x:Name="SleepItem" Style="{StaticResource Shell.MenuItem}" Click="OnItemClick" Tag="Sleep">
+                <StackPanel Orientation="Horizontal">
+                    <t:LineIcon Data="{StaticResource Icon.Sleep}" Margin="0,0,10,0" />
+                    <TextBlock Text="Sleep" VerticalAlignment="Center" />
+                </StackPanel>
+            </Button>
+
+            <Border Height="1" Margin="6,4" Background="{DynamicResource Theme.Hairline}" />
+
+            <Button x:Name="RestartItem" Style="{StaticResource Shell.MenuItem}" Click="OnItemClick" Tag="Restart">
+                <StackPanel Orientation="Horizontal">
+                    <t:LineIcon Data="{StaticResource Icon.Restart}" Margin="0,0,10,0" />
+                    <TextBlock Text="Restart" VerticalAlignment="Center" />
+                </StackPanel>
+            </Button>
+            <Button x:Name="ShutDownItem" Style="{StaticResource Shell.MenuItem}" Click="OnItemClick" Tag="ShutDown">
+                <StackPanel Orientation="Horizontal">
+                    <t:LineIcon Data="{StaticResource Icon.Power}" Margin="0,0,10,0" />
+                    <TextBlock Text="Shut down" VerticalAlignment="Center" />
+                </StackPanel>
+            </Button>
+
+            <!-- MacShell's own menu (also in the tray, which is hidden along with the taskbar). No confirmation needed. -->
+            <Border Height="1" Margin="6,4" Background="{DynamicResource Theme.Hairline}" />
+            <Button Style="{StaticResource Shell.MenuItem}" Click="OnReload">
+                <StackPanel Orientation="Horizontal">
+                    <t:LineIcon Data="{StaticResource Icon.Reload}" Margin="0,0,10,0" />
+                    <TextBlock Text="Reload config" VerticalAlignment="Center" />
+                </StackPanel>
+            </Button>
+            <Button Style="{StaticResource Shell.MenuItem}" Click="OnToggleStartup" HorizontalContentAlignment="Stretch">
+                <DockPanel>
+                    <t:LineIcon x:Name="StartupCheck" DockPanel.Dock="Right" Data="{StaticResource Icon.Check}" Width="14" Height="14" />
+                    <t:LineIcon Data="{StaticResource Icon.Power}" Margin="0,0,10,0" Opacity="0" />
+                    <TextBlock Text="Start with Windows" VerticalAlignment="Center" />
+                </DockPanel>
+            </Button>
+            <Button Style="{StaticResource Shell.MenuItem}" Click="OnQuit">
+                <StackPanel Orientation="Horizontal">
+                    <t:LineIcon Data="{StaticResource Icon.Quit}" Margin="0,0,10,0" />
+                    <TextBlock Text="Quit MacShell" VerticalAlignment="Center" />
+                </StackPanel>
+            </Button>
+
+            <!-- Moved into the place of the clicked item; hidden otherwise. -->
+            <StackPanel x:Name="Confirm" Visibility="Collapsed" Margin="10,6,4,6">
+                <TextBlock x:Name="ConfirmText" FontWeight="Medium" Margin="0,0,0,8" />
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                    <Button Style="{StaticResource Shell.PushButton}" Content="Cancel" Click="OnCancel" Margin="0,0,6,0" IsCancel="True" />
+                    <Button x:Name="ConfirmButton" Style="{StaticResource Shell.PrimaryButton}" Click="OnConfirm" IsDefault="True" />
+                </StackPanel>
+            </StackPanel>
+        </StackPanel>
+    </Border>
+</w:PopupWindow>

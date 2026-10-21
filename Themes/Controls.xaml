@@ -1,0 +1,130 @@
+<!-- Shared button styles. A Style is like a reusable Compose Modifier chain / CSS class;
+     a ControlTemplate replaces the control's whole look (WPF's default button is grey and boxy). -->
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- A clickable item on the bar (logo, clock...): transparent, subtle highlight on hover / press. -->
+    <Style x:Key="Shell.BarButton" TargetType="Button">
+        <Setter Property="Foreground" Value="{DynamicResource Theme.Foreground}" />
+        <!-- Fits a 24 px bar (macOS) with 2 px above and below; still fine on taller bars. -->
+        <Setter Property="Height" Value="20" />
+        <Setter Property="Padding" Value="7,0" />
+        <Setter Property="Focusable" Value="False" />
+        <Setter Property="Cursor" Value="Arrow" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Bg" Background="Transparent" CornerRadius="6" Padding="{TemplateBinding Padding}">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Bg" Property="Background" Value="{DynamicResource Theme.Pressed}" />
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="Bg" Property="Background" Value="{DynamicResource Theme.Pressed}" />
+                        </Trigger>
+                        <!-- Its popup is open (set by Widgets/PopupToggle): stay highlighted, like macOS. -->
+                        <Trigger Property="Tag" Value="open">
+                            <Setter TargetName="Bg" Property="Background" Value="{DynamicResource Theme.Pressed}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- A row in a dropdown menu: full width, highlighted in the selection color on hover. -->
+    <Style x:Key="Shell.MenuItem" TargetType="Button">
+        <Setter Property="Foreground" Value="{DynamicResource Theme.Foreground}" />
+        <Setter Property="Height" Value="32" />
+        <Setter Property="Padding" Value="10,0" />
+        <Setter Property="HorizontalContentAlignment" Value="Left" />
+        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Bg" Background="Transparent" CornerRadius="7" Padding="{TemplateBinding Padding}">
+                        <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" VerticalAlignment="Center" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Bg" Property="Background" Value="{DynamicResource Theme.Selection}" />
+                            <Setter Property="Foreground" Value="White" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- A dock tile: no background or hover box (magnification comes in dock step 4), slightly dimmed while pressed. -->
+    <Style x:Key="Shell.DockTile" TargetType="Button">
+        <Setter Property="Focusable" Value="False" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <ContentPresenter x:Name="Content" />
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="Content" Property="Opacity" Value="0.7" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- Square icon button inside a popup (calendar month arrows). -->
+    <Style x:Key="Shell.IconButton" TargetType="Button">
+        <Setter Property="Foreground" Value="{DynamicResource Theme.Foreground}" />
+        <Setter Property="Width" Value="28" />
+        <Setter Property="Height" Value="28" />
+        <Setter Property="Focusable" Value="False" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Bg" Background="{DynamicResource Theme.Pressed}" CornerRadius="7">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Bg" Property="Opacity" Value="0.7" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- Small pill button (Cancel). -->
+    <Style x:Key="Shell.PushButton" TargetType="Button">
+        <Setter Property="Foreground" Value="{DynamicResource Theme.Foreground}" />
+        <Setter Property="Background" Value="{DynamicResource Theme.Pressed}" />
+        <Setter Property="Height" Value="26" />
+        <Setter Property="MinWidth" Value="64" />
+        <Setter Property="Padding" Value="12,0" />
+        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Bg" Background="{TemplateBinding Background}" CornerRadius="6" Padding="{TemplateBinding Padding}">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Bg" Property="Opacity" Value="0.85" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- The confirming button (Restart, Shut down...): selection color, white text. -->
+    <Style x:Key="Shell.PrimaryButton" TargetType="Button" BasedOn="{StaticResource Shell.PushButton}">
+        <Setter Property="Foreground" Value="White" />
+        <Setter Property="Background" Value="{DynamicResource Theme.Selection}" />
+        <Setter Property="FontWeight" Value="Medium" />
+    </Style>
+</ResourceDictionary>

@@ -1,0 +1,12 @@
+<!-- Speaker icon with 0-2 waves (cross when muted). Scroll to change by 2%, click for Windows' Quick Settings. -->
+<UserControl x:Class="MacShell.Widgets.VolumeWidget"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:t="clr-namespace:MacShell.Themes">
+    <Button x:Name="Button" Style="{StaticResource Shell.BarButton}" Click="OnClick" MouseWheel="OnWheel">
+        <StackPanel Orientation="Horizontal">
+            <t:LineIcon x:Name="Icon" Data="{StaticResource Icon.VolumeHigh}" />
+            <TextBlock x:Name="Percent" VerticalAlignment="Center" Margin="6,0,0,0" />
+        </StackPanel>
+    </Button>
+</UserControl>
