@@ -32,6 +32,10 @@ public sealed class DockConfig
     // While hidden, other apps' tray icons are out of reach; MacShell's own menu is in the logo menu.
     public bool HideTaskbar { get; init; } = true;
 
+    // Slide away when not in use and come back when the mouse touches the bottom edge (macOS "Automatically hide
+    // and show the Dock"). Maximized windows then get the full height. false = always visible, space reserved.
+    public bool AutoHide { get; init; } = true;
+
     public double TileSize { get; init; } = 44;         // icon tiles, WPF units (macOS-like; the canvas used 52)
     public double MagnifiedSize { get; init; } = 60;    // the tile under the mouse while hovering
 

@@ -30,6 +30,7 @@ internal sealed class AppBar : IDisposable
     private readonly AppBarEdge _edge;
     private readonly StripPlacement? _placement;
     private double _thicknessDip;
+    private bool _reserve = true;
     private bool _registered;
 
     // Explorer's ABN_FULLSCREENAPP: true = a fullscreen app opened (on some monitor), false = it closed.
@@ -58,9 +59,18 @@ internal sealed class AppBar : IDisposable
     // Reserves a strip `thicknessDip` (WPF units, 1/96 inch) tall along the edge, or updates its size.
     // If Windows refuses (no Explorer taskbar yet, e.g. very early at sign-in), the window is still placed on top,
     // just without reserved space; TaskbarCreated retries once Explorer is up.
-    public void Dock(double thicknessDip)
+    // `reserve: false` = place the window on the edge but don't take the space (an auto-hiding dock):
+    // maximized windows then use the full height.
+    public void Dock(double thicknessDip, bool reserve = true)
     {
         _thicknessDip = thicknessDip;
+        _reserve = reserve;
+        if (!reserve)
+        {
+            Remove();
+            Position();
+            return;
+        }
         if (!_registered)
         {
             var data = NewData();
@@ -143,7 +153,7 @@ internal sealed class AppBar : IDisposable
         {
             // Explorer restarted and forgot every AppBar: register again.
             _registered = false;
-            Dock(_thicknessDip);
+            Dock(_thicknessDip, _reserve);
         }
         else if (msg is Win32.WM_DISPLAYCHANGE or Win32.WM_DPICHANGED)
         {

@@ -36,6 +36,7 @@ Saving it applies within about a second; a broken save never crashes the app.
   "dock": {
     "enabled": true, "tileSize": 44, "magnifiedSize": 60,             // tileSize 32..96, magnifiedSize tileSize..128
     "hideTaskbar": true,                                              // hide the Windows taskbar while MacShell runs
+    "autoHide": true,                                                 // slide away; mouse at the bottom edge brings it back
     "pinned": ["File Explorer", "Microsoft Edge", "Settings"]         // Start > All apps names, app IDs, or .exe/.lnk paths
   },
   "colors": {

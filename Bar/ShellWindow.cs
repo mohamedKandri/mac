@@ -48,7 +48,7 @@ public abstract class ShellWindow : Window
             ApplyBackdrop();
             _appBar = new AppBar(this, DeviceName, Edge, PlaceInStrip);
             _appBar.FullscreenNotified += opening => FullscreenNotified?.Invoke(opening);
-            _appBar.Dock(ReservedThickness);
+            _appBar.Dock(ReservedThickness, ReservesSpace);
         };
         Theme.Changed += ApplyBackdrop;
     }
@@ -66,14 +66,17 @@ public abstract class ShellWindow : Window
     // Where the window goes inside the reserved strip (physical pixels). Null = fill the strip.
     protected virtual StripPlacement? PlaceInStrip => null;
 
-    // False if Windows refused to reserve the space (see AppBar.Dock).
-    public bool IsDocked => _appBar?.IsRegistered ?? false;
+    // False = sit on the edge without taking the space (the auto-hiding dock): maximized windows use the full height.
+    protected virtual bool ReservesSpace => true;
+
+    // False if Windows refused to reserve the space (see AppBar.Dock). Windows that don't reserve count as docked.
+    public bool IsDocked => !ReservesSpace || (_appBar?.IsRegistered ?? false);
 
     // Gives the reserved screen space back. Thread-safe; used by the crash handler too.
     public void ReleaseAppBar() => _appBar?.Remove();
 
-    // Call when ReservedThickness changed (config reload).
-    protected void Redock() => _appBar?.Dock(ReservedThickness);
+    // Call when ReservedThickness or ReservesSpace changed (config reload).
+    protected void Redock() => _appBar?.Dock(ReservedThickness, ReservesSpace);
 
     // Call when the window's own size changed but the strip didn't (e.g. the dock got more tiles).
     protected void Reposition() => _appBar?.Reposition();
@@ -86,11 +89,15 @@ public abstract class ShellWindow : Window
         _hiddenForFullscreen = hidden;
         OnHiddenForFullscreen(hidden);
         if (hidden) Hide();
-        else Show();   // ShowActivated=False: reappearing doesn't steal focus
+        else ShowAfterFullscreen();
     }
 
     // For subclasses with extra windows of their own (the dock's magnifier) that must hide too.
     protected virtual void OnHiddenForFullscreen(bool hidden) { }
+
+    // The fullscreen app is gone. ShowActivated=False: reappearing doesn't steal focus. The auto-hiding dock
+    // overrides this to stay hidden until the mouse reaches the edge.
+    protected virtual void ShowAfterFullscreen() => Show();
 
     private void ApplyBackdrop() =>
         Backdrop.Apply(this, ThemeManager.ParseColor(TintColor), Theme.Blur, Theme.IsDark);
