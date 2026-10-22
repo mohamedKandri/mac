@@ -22,12 +22,19 @@ internal sealed class NotchWindow : OverlayWindow
     // Canvas geometry, WPF units: 16 px flares, 76 px wide body, 16 px padding, 60 px per ring, 12 px between.
     private const double Flare = 16, TotalWidth = 92, Inset = 16, ItemHeight = 60, ItemGap = 12, RingSize = 44, Stroke = 4;
     private static readonly SolidColorBrush Track = Frozen.Brush(Color.FromRgb(0x2A, 0x2A, 0x2E));
+    // Resting sliver (notch.compact): 8 px wide, 140 high, 3×22 px level bars. Its hover strip is 16 px wide and
+    // almost (not fully) transparent: fully transparent pixels of a layered window let the mouse through.
+    private const double SliverWidth = 8, SliverHeight = 140, SliverHit = 16, BarHeight = 22, BarGap = 6;
+    private static readonly SolidColorBrush HoverStrip = Frozen.Brush(Color.FromArgb(1, 0, 0, 0));
 
     private readonly List<NotchRing> _rings;
     private readonly List<Item> _items = [];
     private readonly DispatcherTimer _timer = new();
     private readonly DispatcherTimer _hideTimer = new() { Interval = TimeSpan.FromMilliseconds(150) };
     private readonly Canvas _root = new();
+    private readonly Canvas _full = new(), _sliver = new();
+    private readonly bool _compact;
+    private readonly DispatcherTimer _collapseTimer = new() { Interval = TimeSpan.FromMilliseconds(400) };
     private NotchPopup? _popup;
     private NotchRing? _popupRing;
     private int _tick;
@@ -47,6 +54,9 @@ internal sealed class NotchWindow : OverlayWindow
     public NotchWindow(NotchConfig config, string deviceName) : base(clickThrough: false)
     {
         DeviceName = deviceName;
+        _compact = config.Compact;
+        _root.Children.Add(_full);
+        _root.Children.Add(_sliver);
         Content = _root;
 
         _rings = config.Rings.Select(NotchRing.Create).ToList();
@@ -61,7 +71,19 @@ internal sealed class NotchWindow : OverlayWindow
             _hideTimer.Stop();
             ClosePopup();
         };
-        MouseLeave += (_, _) => _hideTimer.Start();
+        MouseLeave += (_, _) =>
+        {
+            _hideTimer.Start();
+            if (_compact && !_pressed) _collapseTimer.Start();
+        };
+        MouseEnter += (_, _) => _collapseTimer.Stop();
+        _collapseTimer.Tick += (_, _) =>
+        {
+            _collapseTimer.Stop();
+            if (!IsMouseOver && !_pressed && _popup is null) SetExpanded(false);
+        };
+        _sliver.MouseEnter += (_, _) => SetExpanded(true);
+        SetExpanded(!_compact);
         MouseLeftButtonDown += OnPress;
         MouseMove += OnDrag;
         MouseLeftButtonUp += (_, _) => EndDrag();
@@ -72,7 +94,8 @@ internal sealed class NotchWindow : OverlayWindow
     // (Re)builds the shape and the rings for the rings that are available (no battery = no battery ring).
     private void Build()
     {
-        _root.Children.Clear();
+        _full.Children.Clear();
+        _sliver.Children.Clear();
         _items.Clear();
         var shown = _rings.Where(r => r.Available).ToList();
         double height = 2 * Flare + 2 * Inset + shown.Count * ItemHeight + Math.Max(0, shown.Count - 1) * ItemGap;
@@ -83,7 +106,8 @@ internal sealed class NotchWindow : OverlayWindow
         string path = string.Format(CultureInfo.InvariantCulture,
             "M92,0 Q92,16 76,16 L40,16 Q16,16 16,40 L16,{0} Q16,{1} 40,{1} L76,{1} Q92,{1} 92,{2} Z",
             height - 40, height - 16, height);
-        _root.Children.Add(new Path { Data = Geometry.Parse(path), Fill = Brushes.Black });
+        _full.Children.Add(new Path { Data = Geometry.Parse(path), Fill = Brushes.Black });
+        BuildSliver(height, shown.Count);
 
         double y = Flare + Inset;
         foreach (var ring in shown)
@@ -91,13 +115,49 @@ internal sealed class NotchWindow : OverlayWindow
             var item = BuildRing(ring, out var arc, out var value);
             Canvas.SetLeft(item, Flare + (TotalWidth - Flare - RingSize) / 2);
             Canvas.SetTop(item, y);
-            _root.Children.Add(item);
-            _items.Add(new Item(ring, item, arc, value));
+            _full.Children.Add(item);
+            _items.Add(new Item(ring, item, arc, value, SliverBar(ring, _items.Count, height, shown.Count)));
             y += ItemHeight + ItemGap;
             item.MouseEnter += (_, _) => OpenPopup(ring, item);
         }
         UpdateRings();
         if (IsLoaded) Place();
+    }
+
+    // The resting shape: a thin black sliver on the edge, vertically centered, same concave curves as the notch.
+    private void BuildSliver(double height, int bars)
+    {
+        double t = (height - SliverHeight) / 2, x = TotalWidth - SliverWidth;   // sliver body from x to the edge
+        var strip = new Border { Width = SliverHit, Height = SliverHeight, Background = HoverStrip };
+        Canvas.SetLeft(strip, TotalWidth - SliverHit);
+        Canvas.SetTop(strip, t);
+        _sliver.Children.Add(strip);
+        string path = string.Format(CultureInfo.InvariantCulture,
+            "M{0},{1} Q{0},{2} {3},{2} L{4},{2} Q{5},{2} {5},{6} L{5},{7} Q{5},{8} {4},{8} L{3},{8} Q{0},{8} {0},{9} Z",
+            TotalWidth, t, t + 6, TotalWidth - 4, x + 2, x, t + 8, t + SliverHeight - 8, t + SliverHeight - 6, t + SliverHeight);
+        _sliver.Children.Add(new Path { Data = Geometry.Parse(path), Fill = Brushes.Black, IsHitTestVisible = false });
+    }
+
+    // One level bar in the sliver (bottom-up fill in the ring's color); its fill height is set by UpdateRings.
+    private Border SliverBar(NotchRing ring, int index, double height, int count)
+    {
+        double total = count * BarHeight + Math.Max(0, count - 1) * BarGap;
+        double top = (height - total) / 2 + index * (BarHeight + BarGap);
+        var fill = new Border { Width = 3, Height = 0, CornerRadius = new CornerRadius(1.5), Background = Frozen.Brush(ring.Color), VerticalAlignment = VerticalAlignment.Bottom };
+        var bar = new Grid { Width = 3, Height = BarHeight, IsHitTestVisible = false, Children = { new Border { CornerRadius = new CornerRadius(1.5), Background = Track }, fill } };
+        Canvas.SetLeft(bar, TotalWidth - SliverWidth + 2.5);
+        Canvas.SetTop(bar, top);
+        _sliver.Children.Add(bar);
+        return fill;
+    }
+
+    // Resting sliver <-> full notch. Only one of the two layers is visible; the hidden one costs nothing.
+    private void SetExpanded(bool expanded)
+    {
+        if (!_compact) expanded = true;
+        _full.Visibility = expanded ? Visibility.Visible : Visibility.Collapsed;
+        _sliver.Visibility = expanded ? Visibility.Collapsed : Visibility.Visible;
+        if (!expanded) ClosePopup();
     }
 
     private static FrameworkElement BuildRing(NotchRing ring, out Ellipse arc, out TextBlock value)
@@ -152,12 +212,14 @@ internal sealed class NotchWindow : OverlayWindow
             dashes.Freeze();
             item.Arc.StrokeDashArray = dashes;
             item.Value.Text = $"{percent}%";
+            item.Bar.Height = BarHeight * percent / 100;
         }
     }
 
-    // A ring's visuals, plus the number they currently show (-1 = not drawn yet).
-    private sealed class Item(NotchRing ring, FrameworkElement view, Ellipse arc, TextBlock value)
+    // A ring's visuals (and its level bar in the sliver), plus the number they currently show (-1 = not drawn yet).
+    private sealed class Item(NotchRing ring, FrameworkElement view, Ellipse arc, TextBlock value, Border bar)
     {
+        public Border Bar { get; } = bar;
         public NotchRing Ring { get; } = ring;
         public FrameworkElement View { get; } = view;
         public Ellipse Arc { get; } = arc;
@@ -228,7 +290,9 @@ internal sealed class NotchWindow : OverlayWindow
         _dragging = false;
         Cursor = null;
         SavePosition(_position);
-        if (!IsMouseOver) _hideTimer.Start();
+        if (IsMouseOver) return;
+        _hideTimer.Start();
+        if (_compact) _collapseTimer.Start();
     }
 
     private static double LoadPosition()

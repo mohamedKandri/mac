@@ -42,10 +42,28 @@ public partial class DockAppTile : UserControl
         (window.AppId is not null && window.AppId.Equals(App.ParsingName, StringComparison.OrdinalIgnoreCase))
         || (window.ExePath is not null && App.ExePath is not null && window.ExePath.Equals(App.ExePath, StringComparison.OrdinalIgnoreCase));
 
+    private bool _front;
+
     internal void SetWindows(IReadOnlyList<WindowTracker.AppWindow> windows)
     {
         Windows = windows;
-        Dot.Opacity = windows.Count > 0 ? 1 : 0;   // the running dot
+        UpdateDot();
+    }
+
+    // True while one of this app's windows is the foreground window.
+    internal void SetFront(bool front)
+    {
+        if (front == _front) return;
+        _front = front;
+        UpdateDot();
+    }
+
+    // Not running: no dot. Running: a dimmed 3 px dot. In front: a 14 px bright pill.
+    private void UpdateDot()
+    {
+        bool running = Windows.Count > 0;
+        Dot.Width = running && _front ? 14 : 3;
+        Dot.Opacity = !running ? 0 : _front ? 1 : 0.55;
     }
 
     private void OnClick(object sender, RoutedEventArgs e)

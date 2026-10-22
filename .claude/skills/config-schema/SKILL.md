@@ -44,7 +44,8 @@ Saving it applies within about a second; a broken save never crashes the app.
   "notch": {
     "enabled": true,
     "rings": ["cpu", "memory", "disk", "battery"],                     // top to bottom; each known ring at most once
-    "refreshSeconds": 3                                               // 1..60; each refresh that changes a number redraws the notch
+    "refreshSeconds": 3,                                              // 1..60; each refresh that changes a number redraws the notch
+    "compact": true                                                   // rest as a thin sliver, full rings on hover
   },
   "colors": {
     "dark":  { "background": "#8C14161E", "panel": "#B81C1E28", "foreground": "#F4F5F7", "muted": "#A9AEBB",

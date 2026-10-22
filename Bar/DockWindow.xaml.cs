@@ -26,6 +26,7 @@ public partial class DockWindow : ShellWindow
     private readonly Action<string, string> _notify;
     private readonly AppCommands _commands;
     private readonly WindowTracker _windows = new();
+    private readonly ForegroundWatcher _foreground = new();   // which app is in front, for the tiles' pill
     private bool _binFull;
     private List<AppCatalog.App> _catalog = [];
     private int _iconPixels;
@@ -50,6 +51,7 @@ public partial class DockWindow : ShellWindow
         ApplySizes();
         BuildTiles();
         _windows.Changed += UpdateRunning;
+        _foreground.Changed += _ => UpdateFront();
         UpdateRunning();
         // Trash state: checked at start, whenever the mouse enters the dock, and after a drop (no live subscription,
         // see Native/RecycleBin).
@@ -188,6 +190,14 @@ public partial class DockWindow : ShellWindow
         return tile;
     }
 
+    // Marks the tile whose app owns the foreground window (its pill), and only that one.
+    private void UpdateFront()
+    {
+        IntPtr front = ForegroundWatcher.Current;
+        foreach (var tile in AppTiles.Children.OfType<DockAppTile>().Concat(RunningTiles.Children.OfType<DockAppTile>()))
+            tile.SetFront(tile.Windows.Any(w => w.Handle == front));
+    }
+
     // Matches the open windows to tiles: pinned tiles get their dots; other apps get tiles of their own after the
     // pinned ones. Existing running tiles keep their place (no reshuffling as windows change z-order).
     private void UpdateRunning()
@@ -247,6 +257,7 @@ public partial class DockWindow : ShellWindow
                 }, System.Windows.Threading.DispatcherPriority.Loaded);
             }
         }
+        UpdateFront();   // new tiles start without a pill
     }
 
     // A Start menu entry for a running window if there is one (better name and icon), else its exe.
@@ -285,6 +296,7 @@ public partial class DockWindow : ShellWindow
         _slideTimer?.Stop();
         _trigger?.Close();
         _windows.Dispose();
+        _foreground.Dispose();
         _menu?.SafeClose();
         _numberKeys?.Dispose();
         _listOpenTimer.Stop();

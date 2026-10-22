@@ -21,10 +21,15 @@ namespace MacShell.Bar;
 // above the bar. Black with 10 px concave flares where it meets the top edge, like the notch and the dock.
 internal sealed class IslandWindow : OverlayWindow
 {
-    private const double Flare = 10, CollapsedWidth = 168, OpenWidth = 340, OpenHeight = 128, Radius = 22;
+    // Open card: 128 high for the clock, 178 with a track (artwork, progress bar, controls).
+    private const double Flare = 10, CollapsedWidth = 168, OpenWidth = 340, OpenHeight = 128, MediaHeight = 178, Radius = 22;
+    private const double ContentWidth = OpenWidth - 44;   // inside the card's 22 px side margins
     private static readonly Duration Motion = TimeSpan.FromMilliseconds(220);
     private static readonly SolidColorBrush Muted = Frozen.Brush(Color.FromRgb(0x9A, 0x9A, 0xA2));
     private static readonly SolidColorBrush Playing = Frozen.Brush(Color.FromRgb(0x34, 0xC7, 0x59));
+    private static readonly SolidColorBrush Track = Frozen.Brush(Color.FromRgb(0x2A, 0x2A, 0x2E));
+    private static readonly Brush ArtPlaceholder = FrozenGradient(Color.FromRgb(0xFF, 0x6B, 0x8B), Color.FromRgb(0x7C, 0x6B, 0xFF));
+    private static readonly Geometry NoteIcon = Frozen.Geometry("M9,18 V6 L20,4 V16 M9,18 A2.5,2.5 0 1 1 4,18 A2.5,2.5 0 1 1 9,18 M20,16 A2.5,2.5 0 1 1 15,16 A2.5,2.5 0 1 1 20,16");
     // Solid media glyphs on a 24 px grid.
     private static readonly Geometry PlayIcon = Frozen.Geometry("M7,4 L20,12 L7,20 Z");
     private static readonly Geometry PauseIcon = Frozen.Geometry("M6,4 H10 V20 H6 Z M14,4 H18 V20 H14 Z");
@@ -37,8 +42,11 @@ internal sealed class IslandWindow : OverlayWindow
     private readonly TextBlock _smallTime, _bigTime, _date;
     private readonly MediaSessions _media = new();
     private readonly FrameworkElement _pillNowPlaying, _clockCard, _mediaCard;
-    private readonly TextBlock _pillTitle, _title, _artist, _app;
+    private readonly TextBlock _pillTitle, _title, _artist, _app, _elapsed, _total;
     private readonly Path _playPauseIcon;
+    private readonly Border _art, _pillArt, _progressFill;
+    private readonly FrameworkElement _artIcon, _progress;
+    private readonly DispatcherTimer _progressTimer = new() { Interval = TimeSpan.FromSeconds(1) };
     private readonly DispatcherTimer _clock = new();
     private readonly DispatcherTimer _closeTimer = new() { Interval = TimeSpan.FromMilliseconds(300) };
     private bool _isOpen, _pinned, _hiddenForFullscreen;
@@ -50,17 +58,18 @@ internal sealed class IslandWindow : OverlayWindow
         DeviceName = deviceName;
         _collapsedHeight = barHeight;
         Width = OpenWidth + 2 * Flare;
-        Height = OpenHeight;
+        Height = MediaHeight;   // room for the tallest card; the rest of the window is transparent
 
-        // Collapsed content: the time, or (while something plays) three green bars + the title.
+        // Collapsed content: the time, or (while something plays) a tiny artwork square, the title, three green bars.
         _smallTime = new TextBlock { FontSize = 12, FontWeight = FontWeights.SemiBold, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
-        _pillTitle = new TextBlock { FontSize = 12, FontWeight = FontWeights.Medium, MaxWidth = 124, TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center };
+        _pillTitle = new TextBlock { FontSize = 12, FontWeight = FontWeights.Medium, MaxWidth = 106, TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center };
+        _pillArt = new Border { Width = 14, Height = 14, CornerRadius = new CornerRadius(4), Margin = new Thickness(0, 0, 7, 0), Background = ArtPlaceholder, VerticalAlignment = VerticalAlignment.Center };
         _pillNowPlaying = new StackPanel
         {
             Orientation = Orientation.Horizontal,
             HorizontalAlignment = HorizontalAlignment.Center,
             Visibility = Visibility.Collapsed,
-            Children = { Bars(), _pillTitle },
+            Children = { _pillArt, _pillTitle, Bars() },
         };
         _collapsed = new Grid { Children = { _smallTime, _pillNowPlaying } };
 
@@ -70,8 +79,8 @@ internal sealed class IslandWindow : OverlayWindow
         var nothing = new TextBlock { Text = "Nothing playing", FontSize = 12, Foreground = Muted, Margin = new Thickness(0, 10, 0, 0) };
         _clockCard = new StackPanel { Children = { _bigTime, _date, nothing } };
 
-        // Open content, playing: title, artist, app, then previous / play-pause / next.
-        _title = new TextBlock { FontSize = 15, FontWeight = FontWeights.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis };
+        // Open content, playing: artwork + title, artist, app; a progress bar; previous / play-pause / next.
+        _title = new TextBlock { FontSize = 16, FontWeight = FontWeights.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis };
         _artist = new TextBlock { FontSize = 13, Foreground = Muted, TextTrimming = TextTrimming.CharacterEllipsis, Margin = new Thickness(0, 2, 0, 0) };
         _app = new TextBlock { FontSize = 11, Foreground = Muted, Margin = new Thickness(0, 2, 0, 0) };
         _playPauseIcon = new Path { Fill = Brushes.White, Data = PlayIcon };
@@ -79,7 +88,7 @@ internal sealed class IslandWindow : OverlayWindow
         {
             Orientation = Orientation.Horizontal,
             HorizontalAlignment = HorizontalAlignment.Center,
-            Margin = new Thickness(0, 8, 0, 0),
+            Margin = new Thickness(0, 4, 0, 0),
             Children =
             {
                 ControlButton(new Path { Fill = Brushes.White, Data = PreviousIcon }, 18, "Previous", () => _media.Previous()),
@@ -87,9 +96,28 @@ internal sealed class IslandWindow : OverlayWindow
                 ControlButton(new Path { Fill = Brushes.White, Data = NextIcon }, 18, "Next", () => _media.Next()),
             },
         };
-        _mediaCard = new StackPanel { Visibility = Visibility.Collapsed, Children = { _title, _artist, _app, controls } };
+        _artIcon = new Viewbox { Width = 28, Height = 28, Child = new Canvas { Width = 24, Height = 24, Children = { new Path { Data = NoteIcon, Stroke = Brushes.White, StrokeThickness = 1.8, StrokeStartLineCap = PenLineCap.Round, StrokeEndLineCap = PenLineCap.Round } } } };
+        _art = new Border { Width = 72, Height = 72, CornerRadius = new CornerRadius(12), Background = ArtPlaceholder, Child = _artIcon };
+        DockPanel.SetDock(_art, Dock.Left);
+        var text = new StackPanel { Margin = new Thickness(14, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center, Children = { _title, _artist, _app } };
+        var top = new DockPanel { Children = { _art, text } };
 
-        _open = new Grid { Margin = new Thickness(22, 14, 22, 12), Opacity = 0, Children = { _clockCard, _mediaCard } };
+        _progressFill = new Border { Height = 4, Width = 0, CornerRadius = new CornerRadius(2), Background = Brushes.White, HorizontalAlignment = HorizontalAlignment.Left };
+        _elapsed = new TextBlock { FontSize = 11, Foreground = Muted };
+        _total = new TextBlock { FontSize = 11, Foreground = Muted };
+        DockPanel.SetDock(_total, Dock.Right);
+        _progress = new StackPanel
+        {
+            Margin = new Thickness(0, 12, 0, 0),
+            Children =
+            {
+                new Grid { Height = 4, Children = { new Border { CornerRadius = new CornerRadius(2), Background = Track }, _progressFill } },
+                new DockPanel { Margin = new Thickness(0, 5, 0, 0), Children = { _total, _elapsed } },
+            },
+        };
+        _mediaCard = new StackPanel { Visibility = Visibility.Collapsed, Children = { top, _progress, controls } };
+
+        _open = new Grid { Margin = new Thickness(22, 16, 22, 10), Opacity = 0, Children = { _clockCard, _mediaCard } };
 
         _body = new Border
         {
@@ -137,6 +165,7 @@ internal sealed class IslandWindow : OverlayWindow
         _clock.Tick += (_, _) => UpdateTime();
         UpdateTime();
         _media.Changed += UpdateMedia;
+        _progressTimer.Tick += (_, _) => UpdateProgress();
 
         new WindowInteropHelper(this).Owner = owner;   // stays above the menu bar
         DpiChanged += (_, _) => Dispatcher.InvokeAsync(Place, DispatcherPriority.Loaded);
@@ -159,14 +188,20 @@ internal sealed class IslandWindow : OverlayWindow
         if (pin) _pinned = true;
         if (_isOpen) return;
         _isOpen = true;
-        Animate(OpenWidth, OpenHeight, Radius, openOpacity: 1);
+        Animate(OpenWidth, OpenCardHeight, Radius, openOpacity: 1);
+        UpdateProgress();
+        SyncProgressTimer();
     }
+
+    private bool HasTrack => _media.Current.Active && !string.IsNullOrEmpty(_media.Current.Title);
+    private double OpenCardHeight => HasTrack ? MediaHeight : OpenHeight;
 
     private void Collapse()
     {
         if (!_isOpen || _pinned) return;
         _isOpen = false;
         Animate(CollapsedWidth, _collapsedHeight, 10, openOpacity: 0);
+        SyncProgressTimer();
     }
 
     // Grows or shrinks the pill with an ease-out, cross-fading the small time and the card.
@@ -184,7 +219,9 @@ internal sealed class IslandWindow : OverlayWindow
     private void UpdateMedia()
     {
         var m = _media.Current;
-        bool active = m.Active && !string.IsNullOrEmpty(m.Title);
+        bool active = HasTrack;
+        if (_isOpen && Math.Abs(_body.ActualHeight - OpenCardHeight) > 0.5)
+            _body.BeginAnimation(HeightProperty, new DoubleAnimation(OpenCardHeight, Motion) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } });
         _smallTime.Visibility = active ? Visibility.Collapsed : Visibility.Visible;
         _pillNowPlaying.Visibility = active ? Visibility.Visible : Visibility.Collapsed;
         _clockCard.Visibility = active ? Visibility.Collapsed : Visibility.Visible;
@@ -196,13 +233,52 @@ internal sealed class IslandWindow : OverlayWindow
         _artist.Text = m.Artist.Length > 0 ? m.Artist : " ";
         _app.Text = m.App;
         _playPauseIcon.Data = m.Playing ? PauseIcon : PlayIcon;
+
+        // Artwork, or the gradient + note placeholder when the app gives none.
+        var art = _media.Artwork;
+        Brush artBrush = art is null ? ArtPlaceholder : new ImageBrush(art) { Stretch = Stretch.UniformToFill };
+        _art.Background = artBrush;
+        _pillArt.Background = artBrush;
+        _artIcon.Visibility = art is null ? Visibility.Visible : Visibility.Collapsed;
+
+        _progress.Visibility = m.Duration > 0 ? Visibility.Visible : Visibility.Collapsed;   // live streams: no timeline
+        UpdateProgress();
+        SyncProgressTimer();
+    }
+
+    // The bar and times. Windows only says "position X at time T", so while playing: X + (now - T).
+    private void UpdateProgress()
+    {
+        var m = _media.Current;
+        if (!_isOpen || m.Duration <= 0) return;
+        long position = m.Position + (m.Playing ? (DateTime.UtcNow - m.PositionAt).Ticks : 0);
+        position = Math.Clamp(position, 0, m.Duration);
+        _progressFill.Width = ContentWidth * position / m.Duration;
+        _elapsed.Text = FormatTime(position);
+        _total.Text = FormatTime(m.Duration);
+    }
+
+    // Ticks once a second only while the card is open and something with a timeline plays (each tick redraws
+    // the layered window, so never while closed).
+    private void SyncProgressTimer()
+    {
+        var m = _media.Current;
+        bool run = _isOpen && HasTrack && m.Playing && m.Duration > 0;
+        if (run && !_progressTimer.IsEnabled) _progressTimer.Start();
+        else if (!run) _progressTimer.Stop();
+    }
+
+    private static string FormatTime(long ticks)
+    {
+        var t = TimeSpan.FromTicks(ticks);
+        return t.TotalHours >= 1 ? t.ToString(@"h\:mm\:ss", CultureInfo.InvariantCulture) : t.ToString(@"m\:ss", CultureInfo.InvariantCulture);
     }
 
     // Three short green bars, like a frozen equalizer. Not animated on purpose: an animation would redraw this
     // layered window every frame (tens of ms of CPU each), all the time music plays.
     private static FrameworkElement Bars()
     {
-        var bars = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 7, 0) };
+        var bars = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 0, 0) };
         foreach (double h in new[] { 6.0, 10, 7 })
             bars.Children.Add(new Border { Width = 2.5, Height = h, CornerRadius = new CornerRadius(1.25), Background = Playing, Margin = new Thickness(0, 0, 2, 0), VerticalAlignment = VerticalAlignment.Center });
         return bars;
@@ -257,7 +333,15 @@ internal sealed class IslandWindow : OverlayWindow
     {
         _clock.Stop();
         _closeTimer.Stop();
+        _progressTimer.Stop();
         _media.Dispose();
         base.OnClosed(e);
+    }
+
+    private static Brush FrozenGradient(Color from, Color to)
+    {
+        var brush = new LinearGradientBrush(from, to, 45);
+        brush.Freeze();
+        return brush;
     }
 }

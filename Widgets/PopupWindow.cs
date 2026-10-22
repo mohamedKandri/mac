@@ -8,8 +8,9 @@ using MacShell.Themes;
 
 namespace MacShell.Widgets;
 
-// Base for every dropdown below the bar (power menu, calendar...): frosted glass, Windows 11 rounded corners
-// and shadow, 150 ms fade + slide in, closes on click-away or Esc.
+// Base for every dropdown and menu (power menu, calendar, the dock's right-click menu): solid black with white
+// text like the dock, notch and island (was frosted glass until 2026-10-22), Windows 11 rounded corners and
+// shadow, 150 ms fade + slide in, closes on click-away or Esc.
 //
 // A separate Window rather than WPF's Popup control: a Popup is a layered window, which can't have DWM's
 // rounded corners/shadow and doesn't play well with the blur.
@@ -27,6 +28,14 @@ public class PopupWindow : Window
         SizeToContent = SizeToContent.WidthAndHeight;
         UseLayoutRounding = true;
         Background = Brushes.Transparent;
+
+        // Black in both themes, like the dock: these override the theme's colors for everything in the popup
+        // (window-level resources win over the app's, like a CSS variable redefined on a parent element).
+        Resources[ThemeKeys.PanelFill] = Frozen.Brush(Colors.Black);
+        Resources[ThemeKeys.Foreground] = Frozen.Brush(Colors.White);
+        Resources[ThemeKeys.Muted] = Frozen.Brush(Color.FromRgb(0x9A, 0x9A, 0xA2));
+        Resources[ThemeKeys.Hairline] = Frozen.Brush(Color.FromArgb(0x33, 0xFF, 0xFF, 0xFF));
+        Resources[ThemeKeys.Pressed] = Frozen.Brush(Color.FromArgb(0x24, 0xFF, 0xFF, 0xFF));
 
         // Code version of {DynamicResource ...}: follow the theme live.
         SetResourceReference(ForegroundProperty, ThemeKeys.Foreground);
@@ -140,8 +149,9 @@ public class PopupWindow : Window
         slide.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation(-4, 0, duration) { EasingFunction = ease });
     }
 
+    // No blur behind a solid black panel; dark = Windows draws a dark border and shadow around it.
     private void ApplyBackdrop() =>
-        Backdrop.Apply(this, ThemeManager.ParseColor(_theme.Palette.Panel), _theme.Blur, _theme.IsDark);
+        Backdrop.Apply(this, Colors.Black, blur: false, dark: true);
 
     protected override void OnClosed(EventArgs e)
     {

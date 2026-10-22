@@ -1,3 +1,4 @@
+using System.IO;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Windows.Threading;
@@ -79,6 +80,47 @@ internal static unsafe class WinRt
         int result = fallback;
         int hr = ((delegate* unmanaged[Stdcall]<IntPtr, int*, int>)Slot(obj, slot))(obj, &result);
         return hr == S_OK ? result : fallback;
+    }
+
+    // A method with no arguments that returns a 64-bit value (TimeSpan / DateTime: 100 ns ticks).
+    public static long GetInt64(IntPtr obj, int slot, long fallback)
+    {
+        long result = fallback;
+        int hr = ((delegate* unmanaged[Stdcall]<IntPtr, long*, int>)Slot(obj, slot))(obj, &result);
+        return hr == S_OK ? result : fallback;
+    }
+
+    // ---------------- Streams ----------------
+
+    // Turns a WinRT IRandomAccessStream into a classic COM IStream (documented shcore helper), so it can be read.
+    [DllImport("shcore.dll")]
+    private static extern int CreateStreamOverRandomAccessStream(IntPtr randomAccessStream, in Guid riid, out IntPtr stream);
+
+    private static readonly Guid IID_IStream = new("0000000C-0000-0000-C000-000000000046");
+
+    // Reads a whole WinRT stream (at most `maxBytes`). Null if it can't be read. Doesn't take ownership.
+    public static byte[]? ReadAll(IntPtr randomAccessStream, int maxBytes)
+    {
+        if (CreateStreamOverRandomAccessStream(randomAccessStream, IID_IStream, out IntPtr stream) != S_OK) return null;
+        try
+        {
+            var data = new MemoryStream();
+            var buffer = new byte[64 * 1024];
+            fixed (byte* p = buffer)
+            {
+                while (data.Length < maxBytes)
+                {
+                    uint read = 0;
+                    // IStream::Read(buffer, size, out bytesRead) is slot 3 (right after IUnknown).
+                    int hr = ((delegate* unmanaged[Stdcall]<IntPtr, byte*, uint, uint*, int>)Slot(stream, 3))(stream, p, (uint)buffer.Length, &read);
+                    if (hr < 0) return null;
+                    if (read == 0) break;
+                    data.Write(buffer, 0, (int)read);
+                }
+            }
+            return data.Length < maxBytes ? data.ToArray() : null;
+        }
+        finally { Release(stream); }
     }
 
     // add_SomethingChanged(handler, out token). Returns the token, or 0 if it failed.

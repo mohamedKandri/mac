@@ -47,6 +47,10 @@ public sealed class NotchConfig
     // How often the rings (and an open popup) refresh, 1 to 60. Each redraw of the layered notch window costs a
     // few ms of CPU, so this is the notch's idle cost.
     public int RefreshSeconds { get; init; } = 3;
+
+    // Rest as a thin sliver with tiny level bars on the screen edge, open into the full rings on hover (so the notch
+    // doesn't cover the right edge of maximized windows). false = always the full notch.
+    public bool Compact { get; init; } = true;
 }
 
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
