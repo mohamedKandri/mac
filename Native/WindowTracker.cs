@@ -86,6 +86,18 @@ internal sealed class WindowTracker : IDisposable
 
     public static IntPtr Foreground => Win32.GetForegroundWindow();
 
+    public static string Title(IntPtr hwnd)
+    {
+        int length = Win32.GetWindowTextLengthW(hwnd);
+        if (length <= 0) return "";
+        var text = new System.Text.StringBuilder(length + 1);
+        Win32.GetWindowTextW(hwnd, text, text.Capacity);
+        return text.ToString();
+    }
+
+    // Like clicking the window's X: the app closes it the normal way (and may ask to save first).
+    public static void Close(IntPtr hwnd) => Win32.PostMessageW(hwnd, Win32.WM_CLOSE, IntPtr.Zero, IntPtr.Zero);
+
     // Roughly the taskbar's rules: visible, top-level, not a tool window or owned popup (unless it asks to be
     // shown with WS_EX_APPWINDOW), not cloaked, has a title, and not ours / the shell's.
     private static bool IsAppWindow(IntPtr hwnd)

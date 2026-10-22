@@ -357,6 +357,18 @@ internal static class Win32
     [DllImport("user32.dll")]
     public static extern int GetWindowTextLengthW(IntPtr hwnd);
 
+    // A window's title (what the taskbar shows for it).
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    public static extern int GetWindowTextW(IntPtr hwnd, System.Text.StringBuilder text, int maxCount);
+
+    // Queues a message for a window and returns at once. WM_CLOSE = what the window's X button sends: the app may
+    // still ask "save changes?".
+    public const uint WM_CLOSE = 0x0010;
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool PostMessageW(IntPtr hwnd, uint msg, IntPtr wParam, IntPtr lParam);
+
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     public static extern bool ShowWindow(IntPtr hwnd, int command);

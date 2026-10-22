@@ -14,6 +14,10 @@ public partial class DockAppTile : UserControl
 
     // The dock decides what a click means (launch, focus, next window).
     internal event Action<DockAppTile>? Clicked;
+    internal event Action<DockAppTile>? RightClicked;
+
+    // The dock.pinned entry this tile came from (null for "running, not pinned" tiles); Unpin removes it.
+    internal string? PinEntry { get; init; }
 
     internal DockAppTile(AppCatalog.App app, double tileSize, int iconPixels)
     {
@@ -23,6 +27,11 @@ public partial class DockAppTile : UserControl
         // Rendered at the magnified size (and screen scale), so it stays sharp when it grows in step 4.
         Icon.Source = AppCatalog.Icon(app, iconPixels);
         // No tooltip: the dock shows the app name above the tile while hovering (DockMagnifier).
+        MouseRightButtonUp += (_, e) =>
+        {
+            e.Handled = true;
+            RightClicked?.Invoke(this);
+        };
     }
 
     // The icon element, for the magnifier: its position, and hidden while the magnified copy is shown.

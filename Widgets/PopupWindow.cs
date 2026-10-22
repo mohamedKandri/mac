@@ -98,6 +98,35 @@ public class PopupWindow : Window
         AnimateIn();
     }
 
+    // Opens above `anchor` (a dock tile), centered on it, 8 px above the anchor window's top edge.
+    public void ShowAbove(FrameworkElement anchor, Window anchorWindow)
+    {
+        Point centerPx = anchor.PointToScreen(new Point(anchor.ActualWidth / 2, 0));
+        Point windowTopPx = anchorWindow.PointToScreen(new Point(0, 0));
+        double scale = Monitors.DpiAt((int)centerPx.X, (int)centerPx.Y) / 96.0;
+        Size size = default;
+        if (Content is FrameworkElement content)
+        {
+            content.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+            size = content.DesiredSize;
+        }
+        (int X, int Y) Place(double w, double h) =>
+            ((int)Math.Round(centerPx.X - w * scale / 2), (int)Math.Round(windowTopPx.Y - (h + 8) * scale));
+        SourceInitialized += (_, _) =>
+        {
+            var (x, y) = Place(size.Width, size.Height);
+            WindowStyles.MoveTo(new WindowInteropHelper(this).Handle, x, y);
+        };
+        Loaded += (_, _) =>
+        {
+            var (x, y) = Place(ActualWidth, ActualHeight);
+            WindowStyles.MoveTo(new WindowInteropHelper(this).Handle, x, y);
+        };
+        Show();
+        Activate();
+        AnimateIn();
+    }
+
     private void AnimateIn()
     {
         if (Content is not FrameworkElement content) return;

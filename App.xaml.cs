@@ -59,7 +59,11 @@ public partial class App : Application
         config.Start();
 
         // Same actions for the logo menu (the tray is hidden along with the taskbar).
-        var commands = new AppCommands(Reload, () => Shutdown());
+        var commands = new AppCommands(Reload, () => Shutdown(), change =>
+        {
+            if (ConfigEditor.UpdatePinned(config.FilePath, config.Current.Dock.Pinned, change) is string error)
+                tray.Notify("Couldn't change the dock", error, warning: true);
+        });
 
         // Theme resources must exist before any window is built, since XAML looks them up on load.
         _theme = new ThemeManager(config.Current);
@@ -108,6 +112,7 @@ public partial class App : Application
                 "power-menu" => () => bars.FindWidget<LogoWidget>()?.OpenMenu(),
                 "calendar" => () => bars.FindWidget<ClockWidget>()?.OpenCalendar(),
                 "dock-hover" => () => bars.Dock?.SimulateHover(1),
+                "dock-menu" => () => bars.Dock?.OpenFirstMenu(),
                 "notch" => () => bars.Notch?.OpenFirstPopup(),
                 "island" => () => bars.Island?.Expand(pin: true),
                 _ => null,

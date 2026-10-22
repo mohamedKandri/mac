@@ -24,6 +24,8 @@ public partial class DockWindow : ShellWindow
     private const double TileGap = 6;
 
     private readonly Action<string, string> _notify;
+    private readonly AppCommands _commands;
+    private DockMenu? _menu;
     private readonly WindowTracker _windows = new();
     private bool _binFull;
     private List<AppCatalog.App> _catalog = [];
@@ -31,7 +33,7 @@ public partial class DockWindow : ShellWindow
     private AppConfig _config;
     private string _tilesKey = "";
 
-    public DockWindow(AppConfig config, ThemeManager theme, Action<string, string> notify, string deviceName)
+    public DockWindow(AppConfig config, ThemeManager theme, Action<string, string> notify, AppCommands commands, string deviceName)
         : base(theme, deviceName)
     {
         InitializeComponent();
@@ -43,6 +45,7 @@ public partial class DockWindow : ShellWindow
         Root.SizeChanged += (_, _) => UpdateShape();
         _config = config;
         _notify = notify;
+        _commands = commands;
         ApplySizes();
         BuildTiles();
         _windows.Changed += UpdateRunning;
@@ -441,7 +444,7 @@ public partial class DockWindow : ShellWindow
                 missing.Add($"'{pin}': {hint}");
                 continue;
             }
-            AppTiles.Children.Add(NewTile(app));
+            AppTiles.Children.Add(NewTile(app, pin));
         }
 
         if (missing.Count > 0)
@@ -450,11 +453,52 @@ public partial class DockWindow : ShellWindow
         return true;
     }
 
-    private DockAppTile NewTile(AppCatalog.App app)
+    private DockAppTile NewTile(AppCatalog.App app, string? pin = null)
     {
-        var tile = new DockAppTile(app, _config.Dock.TileSize, _iconPixels) { Margin = new Thickness(0, 0, TileGap, 0) };
+        var tile = new DockAppTile(app, _config.Dock.TileSize, _iconPixels) { Margin = new Thickness(0, 0, TileGap, 0), PinEntry = pin };
         tile.Clicked += OnTileClicked;
+        tile.RightClicked += OnTileRightClicked;
         return tile;
+    }
+
+    // For the `--open dock-menu` developer switch: the first app's right-click menu.
+    public void OpenFirstMenu()
+    {
+        if (AppTiles.Children.OfType<DockAppTile>().Concat(RunningTiles.Children.OfType<DockAppTile>()).FirstOrDefault() is DockAppTile tile)
+            OnTileRightClicked(tile);
+    }
+
+    // Right-click: the taskbar-style menu (Bar/DockMenu), above the tile.
+    private void OnTileRightClicked(DockAppTile tile)
+    {
+        _menu?.SafeClose();
+        _windows.Refresh();   // current windows and titles
+        var app = tile.App;
+        Action? pin = null, unpin = null;
+        if (tile.PinEntry is string entry)
+            unpin = () => _commands.EditPinned(list =>
+            {
+                list.Remove(entry);
+                return list;
+            });
+        else
+            pin = () => _commands.EditPinned(list =>
+            {
+                list.Add(PinName(app));
+                return list;
+            });
+        _menu = new DockMenu(Theme, tile, new DockMenu.Actions(() => AppCatalog.Launch(app), pin, unpin));
+        _menu.Closed += (_, _) => _menu = null;
+        _menu.ShowAbove(tile, this);
+    }
+
+    // What to write in dock.pinned for an app: its Start menu name when that's unambiguous (readable in the
+    // file), else its app ID, else its exe path.
+    private string PinName(AppCatalog.App app)
+    {
+        if (app.IsFile) return app.ParsingName;
+        bool unique = _catalog.Count(a => a.Name.Equals(app.Name, StringComparison.OrdinalIgnoreCase)) == 1;
+        return unique ? app.Name : app.ParsingName;
     }
 
     // Matches the open windows to tiles: pinned tiles get their dots; other apps get tiles of their own after the
@@ -552,6 +596,7 @@ public partial class DockWindow : ShellWindow
         _slideTimer?.Stop();
         _trigger?.Close();
         _windows.Dispose();
+        _menu?.SafeClose();
         base.OnClosed(e);
     }
 

@@ -118,7 +118,7 @@ public sealed class BarManager : IDisposable
         }
         if (_dock is null && _config.Dock.Enabled)
         {
-            _dock = new DockWindow(_config, _theme, _notify, primary.DeviceName);
+            _dock = new DockWindow(_config, _theme, _notify, _commands, primary.DeviceName);
             Open(_dock);
         }
 
