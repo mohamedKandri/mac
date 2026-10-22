@@ -39,6 +39,11 @@ Saving it applies within about a second; a broken save never crashes the app.
     "autoHide": true,                                                 // slide away; mouse at the bottom edge brings it back
     "pinned": ["File Explorer", "Microsoft Edge", "Settings"]         // Start > All apps names, app IDs, or .exe/.lnk paths
   },
+  "notch": {
+    "enabled": true,
+    "rings": ["cpu", "memory", "disk", "battery"],                     // top to bottom; each known ring at most once
+    "refreshSeconds": 3                                               // 1..60; each refresh that changes a number redraws the notch
+  },
   "colors": {
     "dark":  { "background": "#8C14161E", "panel": "#B81C1E28", "foreground": "#F4F5F7", "muted": "#A9AEBB",
                "hairline": "#24FFFFFF", "pressed": "#24FFFFFF", "accent": "#5B9DFF", "selection": "#2F6FD6", "warning": "#FF453A", "dock": "#731E202A" },
@@ -57,6 +62,7 @@ Things that surprise people:
 - **Widget order** = list order; hide one with `"enabled": false` or by deleting the entry. Extra keys in an entry are that widget's settings.
 - `font.family`: the name `Inter` maps to the copy embedded in the exe; other names must be installed fonts. WPF tries them left to right.
 - `dock.pinned` entries are matched against Start > All apps by name (case-insensitive), then by app ID; anything containing `\` is a file path. Two apps can share a name (classic and new "Outlook"): the first wins, so pin the other by its app ID (`Microsoft.OutlookForWindows_8wekyb3d8bbwe!Microsoft.OutlookforWindows`). List the IDs with PowerShell: `(New-Object -ComObject Shell.Application).NameSpace('shell:AppsFolder').Items() | select Name, Path`. Unknown pins don't invalidate the config: they're skipped with a toast.
+- `notch.rings`: unknown names or duplicates are config errors. The battery ring hides itself on a PC without a battery. `refreshSeconds` is the notch's whole idle CPU cost (a redraw of the layered window is ~40 ms of CPU in software rendering), so don't lower the default casually.
 - Clock `format` is a .NET date format, using the Windows locale (`ddd` = Wed, `dddd` = Wednesday, `d` = 21, `MMM` = Oct, `HH:mm` = 24 h, `h:mm tt` = 12 h, `ss` = seconds and makes the clock tick every second).
 
 ## Load, validate, hot-reload

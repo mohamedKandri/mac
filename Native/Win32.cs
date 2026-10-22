@@ -392,6 +392,36 @@ internal static class Win32
     [DllImport("kernel32.dll")]
     public static extern IntPtr GetCurrentProcess();
 
+    // ---------------- System load (notch rings) ----------------
+
+    // Total time the CPUs spent idle / in the kernel (includes idle) / in user mode since boot, in 100 ns ticks.
+    // Comparing two samples gives the CPU load in between.
+    [DllImport("kernel32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool GetSystemTimes(out long idleTime, out long kernelTime, out long userTime);
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct MEMORYSTATUSEX
+    {
+        public uint dwLength;
+        public uint dwMemoryLoad;          // % of physical memory in use
+        public ulong ullTotalPhys, ullAvailPhys, ullTotalPageFile, ullAvailPageFile, ullTotalVirtual, ullAvailVirtual, ullAvailExtendedVirtual;
+    }
+
+    [DllImport("kernel32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool GlobalMemoryStatusEx(ref MEMORYSTATUSEX status);
+
+    // One snapshot of every process (name, CPU times, memory) in a single call, without opening any process.
+    // This is what Task Manager uses. Officially "may change", but stable since Windows 2000.
+    // .NET's Process.GetProcesses() + TotalProcessorTime opens a handle per process instead (~350 OpenProcess calls).
+    // Fills `buffer` with a chain of SYSTEM_PROCESS_INFORMATION records (offsets in SystemStats.ProcessSnapshot).
+    public const int SystemProcessInformation = 5;
+    public const int STATUS_INFO_LENGTH_MISMATCH = unchecked((int)0xC0000004);   // buffer too small, retry bigger
+
+    [DllImport("ntdll.dll")]
+    public static extern int NtQuerySystemInformation(int infoClass, IntPtr buffer, int length, out int returnLength);
+
     // ---------------- Power ----------------
 
     // Same as Win+L.

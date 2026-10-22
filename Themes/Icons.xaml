@@ -23,6 +23,12 @@
     <StreamGeometry x:Key="Icon.TrashFull">M4,7 H20 M6,7 L7,20 H17 L18,7 M10,11 V16 M14,11 V16</StreamGeometry>
     <StreamGeometry x:Key="Icon.TrashPaper">M7.5,6.5 C7,3.5 9.5,2 11,3.5 C12.5,1.5 15.5,2.5 15.5,4.5 C17,4.5 17.5,6 16.5,6.5 Z</StreamGeometry>
 
+    <!-- Notch rings (from the canvas mockup) -->
+    <StreamGeometry x:Key="Icon.Cpu">M6,6 H18 V18 H6 Z M9,2 V6 M15,2 V6 M9,18 V22 M15,18 V22 M2,9 H6 M2,15 H6 M18,9 H22 M18,15 H22</StreamGeometry>
+    <StreamGeometry x:Key="Icon.Memory">M3,8 H21 V16 H3 Z M7,8 V16 M11,8 V16 M15,8 V16</StreamGeometry>
+    <StreamGeometry x:Key="Icon.Disk">M4,6 C4,4.3 7.6,3 12,3 C16.4,3 20,4.3 20,6 V18 C20,19.7 16.4,21 12,21 C7.6,21 4,19.7 4,18 Z M4,6 C4,7.7 7.6,9 12,9 C16.4,9 20,7.7 20,6</StreamGeometry>
+    <StreamGeometry x:Key="Icon.BatteryRing">M3,8 H18 V16 H3 Z M21,11 V13</StreamGeometry>
+
     <!-- Calendar month arrows -->
     <StreamGeometry x:Key="Icon.ChevronLeft">M15,5 L8,12 L15,19</StreamGeometry>
     <StreamGeometry x:Key="Icon.ChevronRight">M9,5 L16,12 L9,19</StreamGeometry>

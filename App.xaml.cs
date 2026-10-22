@@ -108,6 +108,7 @@ public partial class App : Application
                 "power-menu" => () => bars.FindWidget<LogoWidget>()?.OpenMenu(),
                 "calendar" => () => bars.FindWidget<ClockWidget>()?.OpenCalendar(),
                 "dock-hover" => () => bars.Dock?.SimulateHover(1),
+                "notch" => () => bars.Notch?.OpenFirstPopup(),
                 _ => null,
             };
             if (show is not null)

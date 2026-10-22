@@ -141,6 +141,19 @@ desktop (see the windows-appbar skill).
 Never modify the owner's Recycle Bin (or other personal data) while testing from the sandbox: verify read-only and
 leave the rest to the owner.
 
+## Notch rings
+
+The black right-edge notch (`Bar/NotchWindow`, popup `Bar/NotchPopup`) isn't an `IWidget` either. A new ring = a
+`NotchRing` subclass in `Bar/NotchRings.cs` (Label, IconKey, Color, `Update(tick)`, `Details()`), one line in
+`NotchRing.Create`, and its key in `NotchConfig.KnownRings`. Numbers come from `Native/SystemStats` (no polling events
+exist for CPU/memory, so the notch timer samples every `notch.refreshSeconds`). Rules:
+- The notch and its popup are **layered windows**: every visual change redraws the whole window (~40 ms CPU in
+  software rendering). Only touch a ring when its shown number changed; the popup skips identical details.
+- Per-process data comes from one `NtQuerySystemInformation` snapshot (`ProcessSnapshot`), never
+  `Process.GetProcesses()` + `TotalProcessorTime` (a handle per process), and only while a popup is open.
+- Effects (shadows) go on a separate element with `CacheMode = BitmapCache`, so text refreshes don't re-blur.
+- `--open notch` opens the first ring's popup for screenshots.
+
 ## Styles and icons
 
 - Buttons: `Shell.BarButton` (bar items), `Shell.MenuItem` (menu rows), `Shell.IconButton` (28 px square), `Shell.PushButton` / `Shell.PrimaryButton`, `Shell.DockTile` (in `Themes/Controls.xaml`).

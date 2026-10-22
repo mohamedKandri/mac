@@ -20,6 +20,8 @@ public sealed class BarManager : IDisposable
     private readonly ForegroundWatcher _foreground = new();
     private readonly AppCommands _commands;
     private DockWindow? _dock;
+    private NotchWindow? _notch;
+    private string _notchKey = "";
     private AppConfig _config;
 
     public BarManager(AppConfig config, ThemeManager theme, Action<string, string> notify, AppCommands commands)
@@ -68,6 +70,7 @@ public sealed class BarManager : IDisposable
 
     // For developer switches.
     public DockWindow? Dock => _dock;
+    internal NotchWindow? Notch => _notch;
 
     // For developer switches: a widget on the primary bar.
     public T? FindWidget<T>() where T : class, IWidget => _bars.Values.FirstOrDefault()?.FindWidget<T>();
@@ -115,6 +118,21 @@ public sealed class BarManager : IDisposable
             _dock = new DockWindow(_config, _theme, _notify, primary.DeviceName);
             Open(_dock);
         }
+
+        // The notch, also on the primary monitor; rebuilt when its config changes (cheap: a few rings).
+        string notchKey = System.Text.Json.JsonSerializer.Serialize(_config.Notch) + primary.DeviceName;
+        if (_notch is not null && notchKey != _notchKey)
+        {
+            _notch.Close();
+            _notch = null;
+        }
+        _notchKey = notchKey;
+        if (_notch is null && _config.Notch.Enabled)
+        {
+            _notch = new NotchWindow(_config.Notch, primary.DeviceName);
+            _notch.Place();
+        }
+        else _notch?.Place();   // display change: re-center on the edge
     }
 
     private void Open(ShellWindow window)
@@ -123,7 +141,11 @@ public sealed class BarManager : IDisposable
         {
             // "Closed" is trusted as-is (the window may still be shrinking back); "opened" is checked per monitor.
             if (opening) CheckFullscreen();
-            else foreach (var w in All) w.SetHiddenForFullscreen(false);
+            else
+            {
+                foreach (var w in All) w.SetHiddenForFullscreen(false);
+                _notch?.SetHiddenForFullscreen(false);
+            }
         };
         window.Show();
     }
@@ -138,6 +160,8 @@ public sealed class BarManager : IDisposable
     {
         foreach (var window in All)
             window.SetHiddenForFullscreen(Monitors.IsFullscreenAppOn(window.DeviceName));
+        if (_notch is not null)
+            _notch.SetHiddenForFullscreen(Monitors.IsFullscreenAppOn(_notch.DeviceName));
     }
 
     public void Dispose()
@@ -146,7 +170,9 @@ public sealed class BarManager : IDisposable
         _foreground.Dispose();
         _messages.Dispose();
         foreach (var window in All.ToList()) Close(window);
+        _notch?.Close();
         _bars.Clear();
         _dock = null;
+        _notch = null;
     }
 }

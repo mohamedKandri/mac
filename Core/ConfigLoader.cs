@@ -55,7 +55,8 @@ public static class ConfigLoader
     private static string? Validate(AppConfig c, Func<WidgetEntry, string?> checkWidget)
     {
         // `null` in the file ("font": null) bypasses the defaults, so reject it explicitly.
-        if (c.Font is null || c.Bar is null || c.Dock is null || c.Colors is null || c.Bar.Left is null || c.Bar.Right is null || c.Dock.Pinned is null)
+        if (c.Font is null || c.Bar is null || c.Dock is null || c.Colors is null || c.Bar.Left is null || c.Bar.Right is null || c.Dock.Pinned is null
+            || c.Notch is null || c.Notch.Rings is null)
             return "A section is set to null. Remove the key instead to use its default.";
 
         if (string.IsNullOrWhiteSpace(c.Font.Family)) return "font.family can't be empty.";
@@ -65,6 +66,13 @@ public static class ConfigLoader
         if (c.Dock.MagnifiedSize < c.Dock.TileSize || c.Dock.MagnifiedSize > 128)
             return $"dock.magnifiedSize must be between tileSize ({c.Dock.TileSize}) and 128 (got {c.Dock.MagnifiedSize}).";
         if (c.Dock.Pinned.Any(string.IsNullOrWhiteSpace)) return "dock.pinned contains an empty entry.";
+        foreach (var ring in c.Notch.Rings)
+        {
+            if (!NotchConfig.KnownRings.Contains(ring))
+                return $"notch.rings: unknown ring '{ring}'. Known: {string.Join(", ", NotchConfig.KnownRings)}.";
+        }
+        if (c.Notch.Rings.Distinct().Count() != c.Notch.Rings.Count) return "notch.rings lists a ring twice.";
+        if (c.Notch.RefreshSeconds is < 1 or > 60) return $"notch.refreshSeconds must be 1 to 60 (got {c.Notch.RefreshSeconds}).";
         // Whether each pin exists is checked when the dock builds (it needs the Start menu): unknown ones get a toast.
 
         foreach (var (side, list) in new[] { ("left", c.Bar.Left), ("right", c.Bar.Right) })

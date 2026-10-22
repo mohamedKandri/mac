@@ -20,7 +20,24 @@ public sealed class AppConfig
     public FontConfig Font { get; init; } = new();
     public BarConfig Bar { get; init; } = new();
     public DockConfig Dock { get; init; } = new();
+    public NotchConfig Notch { get; init; } = new();
     public ColorsConfig Colors { get; init; } = new();
+}
+
+// The black notch on the right edge of the primary monitor: system rings with a details popup on hover.
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+public sealed class NotchConfig
+{
+    public static readonly string[] KnownRings = ["cpu", "memory", "disk", "battery"];
+
+    public bool Enabled { get; init; } = true;
+
+    // Top to bottom. Any of KnownRings, each at most once.
+    public List<string> Rings { get; init; } = ["cpu", "memory", "disk", "battery"];
+
+    // How often the rings (and an open popup) refresh, 1 to 60. Each redraw of the layered notch window costs a
+    // few ms of CPU, so this is the notch's idle cost.
+    public int RefreshSeconds { get; init; } = 3;
 }
 
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
