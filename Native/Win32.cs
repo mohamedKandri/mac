@@ -202,6 +202,8 @@ internal static class Win32
     public const int DWMWA_USE_IMMERSIVE_DARK_MODE = 20;   // dark or light system-drawn parts (shadow, border)
     public const int DWMWA_WINDOW_CORNER_PREFERENCE = 33;  // Windows 11 corner rounding
     public const int DWMWCP_DONOTROUND = 1, DWMWCP_ROUND = 2, DWMWCP_ROUNDSMALL = 3;
+    public const int DWMWA_BORDER_COLOR = 34;              // Windows 11 window border color
+    public const int DWMWA_COLOR_NONE = unchecked((int)0xFFFFFFFE);   // ...no border at all
 
     // Sets one DWM attribute of a window. `value` is an int for every attribute we use.
     [DllImport("dwmapi.dll")]

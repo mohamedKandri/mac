@@ -37,6 +37,11 @@ internal sealed class DockMagnifier : Window
         ShowActivated = false;
         Topmost = true;
         UseLayoutRounding = true;
+        // White on black like the dock itself (DockWindow overrides the same keys): the label and the Trash copy
+        // use LabelFill, which matches the dock's Trash tile (white 14% over black).
+        Resources[ThemeKeys.Foreground] = Frozen(Colors.White);
+        Resources[ThemeKeys.Hairline] = Frozen(Color.FromArgb(0x33, 0xFF, 0xFF, 0xFF));
+        Resources[ThemeKeys.LabelFill] = Frozen(Color.FromRgb(0x24, 0x24, 0x24));
         SetResourceReference(ForegroundProperty, ThemeKeys.Foreground);
         SetResourceReference(FontFamilyProperty, ThemeKeys.FontFamily);
 
@@ -115,7 +120,14 @@ internal sealed class DockMagnifier : Window
         WindowStyles.PlaceOnTop(new WindowInteropHelper(this).Handle, rect);
     }
 
-    // Like the dock's Trash tile (DockWindow.xaml), but on the panel color: there's no glass under the overlay.
+    private static SolidColorBrush Frozen(Color color)
+    {
+        var brush = new SolidColorBrush(color);
+        brush.Freeze();
+        return brush;
+    }
+
+    // Like the dock's Trash tile (DockWindow.xaml), but opaque: the overlay has nothing under it.
     private static FrameworkElement TrashView(double size, bool full)
     {
         var tile = new Border

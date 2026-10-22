@@ -12,7 +12,8 @@ namespace MacShell.Native;
 internal static class Backdrop
 {
     // Call once from SourceInitialized (the native window must exist).
-    public static void Prepare(Window window, bool roundedCorners)
+    // `systemBorder` false = no Windows 11 1 px border: for windows that draw their own shape (the black dock).
+    public static void Prepare(Window window, bool roundedCorners, bool systemBorder = true)
     {
         IntPtr hwnd = new WindowInteropHelper(window).Handle;
 
@@ -25,6 +26,12 @@ internal static class Backdrop
 
         int corners = roundedCorners ? Win32.DWMWCP_ROUND : Win32.DWMWCP_DONOTROUND;
         Win32.DwmSetWindowAttribute(hwnd, Win32.DWMWA_WINDOW_CORNER_PREFERENCE, ref corners, sizeof(int));
+
+        if (!systemBorder)
+        {
+            int none = Win32.DWMWA_COLOR_NONE;
+            Win32.DwmSetWindowAttribute(hwnd, Win32.DWMWA_BORDER_COLOR, ref none, sizeof(int));
+        }
     }
 
     // Turns the blur on with a tint (the config's background color), or off when Windows'

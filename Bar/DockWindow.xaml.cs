@@ -5,19 +5,21 @@ using MacShell.Themes;
 
 namespace MacShell.Bar;
 
-// The dock at the bottom of the primary monitor. It reserves a strip (so maximized windows stop above it):
-// the panel + the 14 px gap below it. Magnified tiles draw above the strip, in the DockMagnifier overlay.
+// The dock at the bottom of the primary monitor: a solid black shape on the bottom edge, styled like the
+// right-edge notch. It reserves a strip as tall as the panel (so maximized windows stop above it).
+// Magnified tiles draw above the strip, in the DockMagnifier overlay.
 //
 //   ┌──────────── reserved strip (full width) ────────────┐
-//   │            ╭──── panel = this window ────╮           │
-//   │            ╰─────────────────────────────╯           │
-//   │                      14 px gap                       │
+//   │            ╭───── panel (black) ─────╮               │
+//   │___________╱                           ╲______________│  <- 16 px flares into the screen edge
 //   └──────────────────────────────────────────────────────┘
 public partial class DockWindow : ShellWindow
 {
     // macOS proportions (owner's reference screenshot): padding 6 top / 8 sides / 3 bottom, a 3 px running dot 2 px
-    // under the tile, 6 between tiles, 6 above the screen edge. (The first canvas design used 10/12/8, 4+4, 10, 14.)
-    private const double EdgeGap = 6, PaddingTop = 6, PaddingSide = 8, PaddingBottom = 3, DotRow = 2 + 3;
+    // under the tile, 6 between tiles. Since the black notch style (2026-10-22) it sits on the edge (no gap), with
+    // the notch's 16 px flares on both sides and 18 px top corners.
+    private const double EdgeGap = 0, PaddingTop = 6, PaddingSide = 8, PaddingBottom = 3, DotRow = 2 + 3;
+    private const double Flare = 16, CornerRadius = 18;
 
     private const double TileGap = 6;
 
@@ -33,6 +35,12 @@ public partial class DockWindow : ShellWindow
         : base(theme, deviceName)
     {
         InitializeComponent();
+        // Always white on black, whatever the Windows theme (like the notch): these override the theme's colors
+        // for everything inside the dock (running dots, dividers, Trash tile).
+        Resources[ThemeKeys.Foreground] = Frozen(System.Windows.Media.Colors.White);
+        Resources[ThemeKeys.Hairline] = Frozen(System.Windows.Media.Color.FromArgb(0x33, 0xFF, 0xFF, 0xFF));
+        Resources[ThemeKeys.Pressed] = Frozen(System.Windows.Media.Color.FromArgb(0x24, 0xFF, 0xFF, 0xFF));
+        Root.SizeChanged += (_, _) => UpdateShape();
         _config = config;
         _notify = notify;
         ApplySizes();
@@ -53,7 +61,7 @@ public partial class DockWindow : ShellWindow
         // Magnification follows the mouse anywhere on the panel (MouseMove bubbles up from the tiles).
         Panel.MouseMove += (_, e) =>
         {
-            _mouseX = e.GetPosition(Panel).X;
+            _mouseX = e.GetPosition(Root).X;
             if (!_hovering) BeginHover();
             StartLoop();
         };
@@ -177,7 +185,7 @@ public partial class DockWindow : ShellWindow
 
         void Add(FrameworkElement element, string name, System.Windows.Media.ImageSource? icon, bool isTrash)
         {
-            Point bottomCenter = element.TranslatePoint(new Point(element.ActualWidth / 2, element.ActualHeight), Panel);
+            Point bottomCenter = element.TranslatePoint(new Point(element.ActualWidth / 2, element.ActualHeight), Root);
             _items.Add(new DockMagnifier.Item(icon, isTrash, name, bottomCenter.X, bottomCenter.Y, element.ActualWidth, isTrash && _binFull));
             _hiddenWhileMagnified.Add(element);
         }
@@ -262,7 +270,8 @@ public partial class DockWindow : ShellWindow
     }
 
     protected override AppBarEdge Edge => AppBarEdge.Bottom;
-    protected override bool RoundedCorners => true;
+    protected override bool RoundedCorners => false;
+    protected override bool Glass => false;
     protected override string TintColor => Theme.Palette.Dock;
 
     private double PanelHeight => PaddingTop + _config.Dock.TileSize + DotRow + PaddingBottom;
@@ -271,14 +280,14 @@ public partial class DockWindow : ShellWindow
     // windows while hovering, like macOS. The overlay is click-through, so nothing below gets blocked.
     protected override double ReservedThickness => EdgeGap + PanelHeight;
 
-    // Panel-sized window, centered on the monitor, 14 px above the bottom of the reserved strip.
+    // Panel + flares, centered on the monitor, on the bottom of the reserved strip.
     protected override StripPlacement PlaceInStrip => (reserved, monitor, scale) =>
     {
         // Ask for the natural width from scratch: invalidate first, so a size cached from before a tile was
         // added or removed can't be reused (that left an empty gap after Trash when an app closed).
-        foreach (var panel in new UIElement[] { AppTiles, RunningTiles, Panel }) panel.InvalidateMeasure();
-        Panel.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
-        int width = (int)Math.Round(Panel.DesiredSize.Width * scale);
+        foreach (var panel in new UIElement[] { AppTiles, RunningTiles, Panel, Root }) panel.InvalidateMeasure();
+        Root.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+        int width = (int)Math.Round(Root.DesiredSize.Width * scale);
         int height = (int)Math.Round(PanelHeight * scale);
         int bottom = reserved.Y + reserved.Height - (int)Math.Round(EdgeGap * scale);
         _target = new Int32Rect(monitor.X + (monitor.Width - width) / 2, bottom - height, width, height);
@@ -551,11 +560,30 @@ public partial class DockWindow : ShellWindow
         double tile = _config.Dock.TileSize;
         Panel.Height = PanelHeight;
         Panel.Padding = new Thickness(PaddingSide, PaddingTop, PaddingSide, PaddingBottom);
+        Panel.Margin = new Thickness(Flare, 0, Flare, 0);   // the flares sit outside the body
         TrashTile.Width = TrashTile.Height = tile;
         TrashTile.CornerRadius = new CornerRadius(tile * 0.23);   // canvas: 12 px corners on a 52 px tile
         TrashIcon.Width = TrashIcon.Height = tile * 24 / 52;      // canvas: 24 px glyph in a 52 px tile
         TrashDot.Margin = new Thickness(0, DotRow - 3, 0, 0);
         Divider.Height = RunningDivider.Height = tile;
         Divider.Margin = RunningDivider.Margin = new Thickness(0, 0, TileGap, 0);
+    }
+
+    // The black body with rounded top corners, and concave flares where it meets the screen edge (same curves as
+    // the notch, turned on its side). Coordinates in WPF units; y = height is the screen edge.
+    private void UpdateShape()
+    {
+        double w = Root.ActualWidth, h = Root.ActualHeight;
+        if (w < 2 * (Flare + CornerRadius) || h < Flare + CornerRadius) return;
+        Shape.Data = System.Windows.Media.Geometry.Parse(string.Format(System.Globalization.CultureInfo.InvariantCulture,
+            "M0,{1} Q{2},{1} {2},{3} L{2},{4} Q{2},0 {5},0 L{6},0 Q{7},0 {7},{4} L{7},{3} Q{7},{1} {0},{1} Z",
+            w, h, Flare, h - Flare, CornerRadius, Flare + CornerRadius, w - Flare - CornerRadius, w - Flare));
+    }
+
+    private static System.Windows.Media.SolidColorBrush Frozen(System.Windows.Media.Color color)
+    {
+        var brush = new System.Windows.Media.SolidColorBrush(color);
+        brush.Freeze();
+        return brush;
     }
 }

@@ -141,6 +141,12 @@ desktop (see the windows-appbar skill).
 Never modify the owner's Recycle Bin (or other personal data) while testing from the sandbox: verify read-only and
 leave the rest to the owner.
 
+Dock look (since 2026-10-22): no glass. `DockWindow` overrides `ShellWindow.Glass => false`, so the window is
+see-through and draws a black `Shape` (a `Path` inside a `Canvas`, so it never drives the window size) with the notch's
+16 px edge flares, rebuilt in `UpdateShape` on every size change. The window and `DockMagnifier` override
+`Theme.Foreground`, `Hairline`, `Pressed` / `LabelFill` in their own `Resources` to stay white on black in both themes.
+Tile x positions for the magnifier are in `Root` coordinates (the panel sits 16 px in, after the left flare).
+
 ## Notch rings
 
 The black right-edge notch (`Bar/NotchWindow`, popup `Bar/NotchPopup`) isn't an `IWidget` either. A new ring = a

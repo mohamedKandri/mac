@@ -1,5 +1,6 @@
-<!-- The dock. The window IS the frosted panel (Windows rounds its corners and draws the shadow); it is centered
-     14 px above the bottom of the reserved strip by DockWindow.PlaceInStrip. Sizes come from config (dock.tileSize).
+<!-- The dock: a solid black shape (like the right-edge notch) sitting on the bottom edge, centered by
+     DockWindow.PlaceInStrip, with curved flares where it meets the edge. The window itself is see-through (no glass);
+     `Shape` is redrawn by DockWindow.UpdateShape whenever its size changes. Sizes come from config (dock.tileSize).
      Layout: pinned apps | running apps that aren't pinned | Trash. Tiles are Bar/DockAppTile. -->
 <b:ShellWindow x:Class="MacShell.Bar.DockWindow"
                xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
@@ -7,32 +8,38 @@
                xmlns:b="clr-namespace:MacShell.Bar"
                xmlns:t="clr-namespace:MacShell.Themes"
                Title="MacShell Dock">
-    <Border x:Name="Panel" Background="{DynamicResource Theme.DockFill}" Padding="12,10,12,8">
-        <StackPanel Orientation="Horizontal">
-            <!-- Pinned app tiles, filled by DockWindow.BuildTiles. -->
-            <StackPanel x:Name="AppTiles" Orientation="Horizontal" />
+    <Grid x:Name="Root">
+        <!-- In a Canvas so the shape never counts towards the window's size (it follows the size instead). -->
+        <Canvas>
+            <Path x:Name="Shape" Fill="{DynamicResource Theme.DockFill}" />
+        </Canvas>
+        <Border x:Name="Panel" Background="Transparent" Padding="12,10,12,8">
+            <StackPanel Orientation="Horizontal">
+                <!-- Pinned app tiles, filled by DockWindow.BuildTiles. -->
+                <StackPanel x:Name="AppTiles" Orientation="Horizontal" />
 
-            <!-- Running apps that aren't pinned (DockWindow.UpdateRunning), after their own divider. -->
-            <Border x:Name="RunningDivider" Width="1" Margin="0,0,10,0" VerticalAlignment="Top"
-                    Background="{DynamicResource Theme.Hairline}" Visibility="Collapsed" />
-            <StackPanel x:Name="RunningTiles" Orientation="Horizontal" />
+                <!-- Running apps that aren't pinned (DockWindow.UpdateRunning), after their own divider. -->
+                <Border x:Name="RunningDivider" Width="1" Margin="0,0,10,0" VerticalAlignment="Top"
+                        Background="{DynamicResource Theme.Hairline}" Visibility="Collapsed" />
+                <StackPanel x:Name="RunningTiles" Orientation="Horizontal" />
 
-            <!-- Divider: only shown when there are app tiles. -->
-            <Border x:Name="Divider" Width="1" Margin="0,0,10,0" VerticalAlignment="Top"
-                    Background="{DynamicResource Theme.Hairline}" Visibility="Collapsed" />
+                <!-- Divider: only shown when there are app tiles. -->
+                <Border x:Name="Divider" Width="1" Margin="0,0,10,0" VerticalAlignment="Top"
+                        Background="{DynamicResource Theme.Hairline}" Visibility="Collapsed" />
 
-            <!-- Trash: icon tile + an empty dot row, so it lines up with app tiles.
-                 Click opens the Recycle Bin; files dropped on it are recycled (DockWindow.OnTrashDrop). -->
-            <StackPanel>
-                <Button Style="{StaticResource Shell.DockTile}" Click="OnTrashClick" AllowDrop="True"
-                        DragEnter="OnTrashDragOver" DragOver="OnTrashDragOver" DragLeave="OnTrashDragLeave" Drop="OnTrashDrop">
-                    <Border x:Name="TrashTile" CornerRadius="12" BorderThickness="1"
-                            Background="{DynamicResource Theme.Pressed}" BorderBrush="{DynamicResource Theme.Hairline}">
-                        <t:LineIcon x:Name="TrashIcon" Data="{StaticResource Icon.Trash}" />
-                    </Border>
-                </Button>
-                <Ellipse x:Name="TrashDot" Width="3" Height="3" Margin="0,2,0,0" Fill="Transparent" />
+                <!-- Trash: icon tile + an empty dot row, so it lines up with app tiles.
+                     Click opens the Recycle Bin; files dropped on it are recycled (DockWindow.OnTrashDrop). -->
+                <StackPanel>
+                    <Button Style="{StaticResource Shell.DockTile}" Click="OnTrashClick" AllowDrop="True"
+                            DragEnter="OnTrashDragOver" DragOver="OnTrashDragOver" DragLeave="OnTrashDragLeave" Drop="OnTrashDrop">
+                        <Border x:Name="TrashTile" CornerRadius="12" BorderThickness="1"
+                                Background="{DynamicResource Theme.Pressed}" BorderBrush="{DynamicResource Theme.Hairline}">
+                            <t:LineIcon x:Name="TrashIcon" Data="{StaticResource Icon.Trash}" />
+                        </Border>
+                    </Button>
+                    <Ellipse x:Name="TrashDot" Width="3" Height="3" Margin="0,2,0,0" Fill="Transparent" />
+                </StackPanel>
             </StackPanel>
-        </StackPanel>
-    </Border>
+        </Border>
+    </Grid>
 </b:ShellWindow>

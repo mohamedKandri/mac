@@ -78,7 +78,8 @@ public sealed class ThemeManager : IDisposable
         // With blur off there's nothing behind a semi-transparent color but black, so use it fully opaque.
         resources[ThemeKeys.BarFill] = Blur ? Brushes.Transparent : Brush(Palette.Background, opaque: true);
         resources[ThemeKeys.PanelFill] = Blur ? Brushes.Transparent : Brush(Palette.Panel, opaque: true);
-        resources[ThemeKeys.DockFill] = Blur ? Brushes.Transparent : Brush(Palette.Dock, opaque: true);
+        // The dock draws its own solid shape (no glass behind it), so its color is used as given.
+        resources[ThemeKeys.DockFill] = Brush(Palette.Dock);
         resources[ThemeKeys.LabelFill] = Brush(Palette.Panel);
 
         resources[ThemeKeys.FontFamily] = BuildFont(_config.Font.Family);
