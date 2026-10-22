@@ -12,7 +12,7 @@ namespace MacShell.Bar;
 // Needed because the dock window IS the glass panel, and anything drawn outside a window is clipped.
 //
 // Coordinates: same WPF units as the dock panel, shifted down by `Headroom` (the overlay starts that much higher).
-internal sealed class DockMagnifier : Window
+internal sealed class DockMagnifier : OverlayWindow
 {
     // One tile as the dock laid it out: icon (or the Trash glyph), name, horizontal center and bottom edge of the
     // icon in panel coordinates, and its normal size.
@@ -26,24 +26,14 @@ internal sealed class DockMagnifier : Window
     // How far above the dock panel the overlay reaches: magnified tiles + the name label.
     public double Headroom { get; }
 
-    public DockMagnifier(double headroom)
+    public DockMagnifier(double headroom) : base(clickThrough: true)
     {
         Headroom = headroom;
-        WindowStyle = WindowStyle.None;
-        AllowsTransparency = true;      // layered window: per-pixel transparency, and the only kind that can be click-through
-        Background = Brushes.Transparent;
-        ResizeMode = ResizeMode.NoResize;
-        ShowInTaskbar = false;
-        ShowActivated = false;
-        Topmost = true;
-        UseLayoutRounding = true;
         // White on black like the dock itself (DockWindow overrides the same keys): the label and the Trash copy
         // use LabelFill, which matches the dock's Trash tile (white 14% over black).
-        Resources[ThemeKeys.Foreground] = Frozen(Colors.White);
-        Resources[ThemeKeys.Hairline] = Frozen(Color.FromArgb(0x33, 0xFF, 0xFF, 0xFF));
-        Resources[ThemeKeys.LabelFill] = Frozen(Color.FromRgb(0x24, 0x24, 0x24));
-        SetResourceReference(ForegroundProperty, ThemeKeys.Foreground);
-        SetResourceReference(FontFamilyProperty, ThemeKeys.FontFamily);
+        Resources[ThemeKeys.Foreground] = Frozen.Brush(Colors.White);
+        Resources[ThemeKeys.Hairline] = Frozen.Brush(Color.FromArgb(0x33, 0xFF, 0xFF, 0xFF));
+        Resources[ThemeKeys.LabelFill] = Frozen.Brush(Color.FromRgb(0x24, 0x24, 0x24));
 
         _labelText = new TextBlock { FontSize = 12, FontWeight = FontWeights.Medium };
         _label = new Border
@@ -59,7 +49,6 @@ internal sealed class DockMagnifier : Window
         Panel.SetZIndex(_label, 1000);
         Content = _canvas;
 
-        SourceInitialized += (_, _) => WindowStyles.MakeClickThroughOverlay(new WindowInteropHelper(this).Handle);
     }
 
     // Copies the dock's tiles (called when hovering starts, or when tiles change while hovering).
@@ -118,13 +107,6 @@ internal sealed class DockMagnifier : Window
         var rect = new Int32Rect(dock.X, dock.Y - extra, dock.Width, dock.Height + extra);
         if (!IsVisible) Show();
         WindowStyles.PlaceOnTop(new WindowInteropHelper(this).Handle, rect);
-    }
-
-    private static SolidColorBrush Frozen(Color color)
-    {
-        var brush = new SolidColorBrush(color);
-        brush.Freeze();
-        return brush;
     }
 
     // Like the dock's Trash tile (DockWindow.xaml), but opaque: the overlay has nothing under it.

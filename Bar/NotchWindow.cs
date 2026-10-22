@@ -1,4 +1,4 @@
-﻿using System.Globalization;
+using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Interop;
@@ -17,11 +17,11 @@ namespace MacShell.Bar;
 //
 // A layered window (AllowsTransparency) so the curved flares where it meets the screen edge are truly see-through
 // and pass clicks to what's behind. Solid black on purpose: it reads as hardware, in front of the glass bar and dock.
-internal sealed class NotchWindow : Window
+internal sealed class NotchWindow : OverlayWindow
 {
     // Canvas geometry, WPF units: 16 px flares, 76 px wide body, 16 px padding, 60 px per ring, 12 px between.
     private const double Flare = 16, TotalWidth = 92, Inset = 16, ItemHeight = 60, ItemGap = 12, RingSize = 44, Stroke = 4;
-    private static readonly SolidColorBrush Track = Frozen(Color.FromRgb(0x2A, 0x2A, 0x2E));
+    private static readonly SolidColorBrush Track = Frozen.Brush(Color.FromRgb(0x2A, 0x2A, 0x2E));
 
     private readonly List<NotchRing> _rings;
     private readonly List<Item> _items = [];
@@ -44,21 +44,10 @@ internal sealed class NotchWindow : Window
 
     public string DeviceName { get; }
 
-    public NotchWindow(NotchConfig config, string deviceName)
+    public NotchWindow(NotchConfig config, string deviceName) : base(clickThrough: false)
     {
         DeviceName = deviceName;
-        WindowStyle = WindowStyle.None;
-        AllowsTransparency = true;
-        Background = Brushes.Transparent;
-        ResizeMode = ResizeMode.NoResize;
-        ShowInTaskbar = false;
-        ShowActivated = false;
-        Topmost = true;
-        UseLayoutRounding = true;
-        Foreground = Brushes.White;
-        SetResourceReference(FontFamilyProperty, ThemeKeys.FontFamily);
         Content = _root;
-        SourceInitialized += (_, _) => WindowStyles.MakeToolWindow(new WindowInteropHelper(this).Handle, noActivate: true);
 
         _rings = config.Rings.Select(NotchRing.Create).ToList();
         foreach (var ring in _rings) ring.Update(0);
@@ -117,7 +106,7 @@ internal sealed class NotchWindow : Window
         arc = new Ellipse
         {
             Width = RingSize, Height = RingSize, StrokeThickness = Stroke,
-            Stroke = Frozen(ring.Color), StrokeDashCap = PenLineCap.Round,
+            Stroke = Frozen.Brush(ring.Color), StrokeDashCap = PenLineCap.Round,
             RenderTransformOrigin = new Point(0.5, 0.5), RenderTransform = new RotateTransform(-90),   // start at the top
         };
         var icon = new LineIcon
@@ -308,12 +297,5 @@ internal sealed class NotchWindow : Window
         ClosePopup();
         foreach (var ring in _rings) ring.Dispose();
         base.OnClosed(e);
-    }
-
-    private static SolidColorBrush Frozen(Color color)
-    {
-        var brush = new SolidColorBrush(color);
-        brush.Freeze();
-        return brush;
     }
 }

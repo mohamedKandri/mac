@@ -19,20 +19,19 @@ namespace MacShell.Bar;
 // One layered window (AllowsTransparency) sized for the OPEN card; only the black shape is drawn, and fully
 // transparent pixels let clicks through to the bar below. It is owned by the menu bar window, so it always stays
 // above the bar. Black with 10 px concave flares where it meets the top edge, like the notch and the dock.
-internal sealed class IslandWindow : Window
+internal sealed class IslandWindow : OverlayWindow
 {
     private const double Flare = 10, CollapsedWidth = 168, OpenWidth = 340, OpenHeight = 128, Radius = 22;
     private static readonly Duration Motion = TimeSpan.FromMilliseconds(220);
-    private static readonly SolidColorBrush Muted = Frozen(Color.FromRgb(0x9A, 0x9A, 0xA2));
-    private static readonly SolidColorBrush Playing = Frozen(Color.FromRgb(0x34, 0xC7, 0x59));
+    private static readonly SolidColorBrush Muted = Frozen.Brush(Color.FromRgb(0x9A, 0x9A, 0xA2));
+    private static readonly SolidColorBrush Playing = Frozen.Brush(Color.FromRgb(0x34, 0xC7, 0x59));
     // Solid media glyphs on a 24 px grid.
-    private static readonly Geometry PlayIcon = FrozenGeometry("M7,4 L20,12 L7,20 Z");
-    private static readonly Geometry PauseIcon = FrozenGeometry("M6,4 H10 V20 H6 Z M14,4 H18 V20 H14 Z");
-    private static readonly Geometry PreviousIcon = FrozenGeometry("M5,5 H7.5 V19 H5 Z M19,5 L9,12 L19,19 Z");
-    private static readonly Geometry NextIcon = FrozenGeometry("M16.5,5 H19 V19 H16.5 Z M5,5 L15,12 L5,19 Z");
+    private static readonly Geometry PlayIcon = Frozen.Geometry("M7,4 L20,12 L7,20 Z");
+    private static readonly Geometry PauseIcon = Frozen.Geometry("M6,4 H10 V20 H6 Z M14,4 H18 V20 H14 Z");
+    private static readonly Geometry PreviousIcon = Frozen.Geometry("M5,5 H7.5 V19 H5 Z M19,5 L9,12 L19,19 Z");
+    private static readonly Geometry NextIcon = Frozen.Geometry("M16.5,5 H19 V19 H16.5 Z M5,5 L15,12 L5,19 Z");
 
     private readonly double _collapsedHeight;   // = the menu bar height, so the pill sits inside the bar
-    private readonly IntPtr _owner;
     private readonly Border _body;
     private readonly FrameworkElement _collapsed, _open;
     private readonly TextBlock _smallTime, _bigTime, _date;
@@ -46,21 +45,10 @@ internal sealed class IslandWindow : Window
 
     public string DeviceName { get; }
 
-    public IslandWindow(double barHeight, string deviceName, IntPtr owner)
+    public IslandWindow(double barHeight, string deviceName, IntPtr owner) : base(clickThrough: false)
     {
         DeviceName = deviceName;
         _collapsedHeight = barHeight;
-        _owner = owner;
-        WindowStyle = WindowStyle.None;
-        AllowsTransparency = true;
-        Background = Brushes.Transparent;
-        ResizeMode = ResizeMode.NoResize;
-        ShowInTaskbar = false;
-        ShowActivated = false;
-        Topmost = true;
-        UseLayoutRounding = true;
-        Foreground = Brushes.White;
-        SetResourceReference(FontFamilyProperty, ThemeKeys.FontFamily);
         Width = OpenWidth + 2 * Flare;
         Height = OpenHeight;
 
@@ -150,11 +138,6 @@ internal sealed class IslandWindow : Window
         UpdateTime();
         _media.Changed += UpdateMedia;
 
-        SourceInitialized += (_, _) =>
-        {
-            var hwnd = new WindowInteropHelper(this).Handle;
-            WindowStyles.MakeToolWindow(hwnd, noActivate: true);
-        };
         new WindowInteropHelper(this).Owner = owner;   // stays above the menu bar
         DpiChanged += (_, _) => Dispatcher.InvokeAsync(Place, DispatcherPriority.Loaded);
     }
@@ -276,19 +259,5 @@ internal sealed class IslandWindow : Window
         _closeTimer.Stop();
         _media.Dispose();
         base.OnClosed(e);
-    }
-
-    private static Geometry FrozenGeometry(string data)
-    {
-        var geometry = Geometry.Parse(data);
-        geometry.Freeze();
-        return geometry;
-    }
-
-    private static SolidColorBrush Frozen(Color color)
-    {
-        var brush = new SolidColorBrush(color);
-        brush.Freeze();
-        return brush;
     }
 }

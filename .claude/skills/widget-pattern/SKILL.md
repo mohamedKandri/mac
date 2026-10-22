@@ -147,6 +147,14 @@ see-through and draws a black `Shape` (a `Path` inside a `Canvas`, so it never d
 `Theme.Foreground`, `Hairline`, `Pressed` / `LabelFill` in their own `Resources` to stay white on black in both themes.
 Tile x positions for the magnifier are in `Root` coordinates (the panel sits 16 px in, after the left flare).
 
+## Floating windows and the dock's files
+
+Any new see-through floating window (popup bubble, overlay, list) derives from `Bar/OverlayWindow`
+(`base(clickThrough: …)`) instead of repeating the window setup; brushes/shapes built in code use
+`Themes/Frozen.Brush` / `Frozen.Geometry`. The dock is one `partial class` over `Bar/DockWindow.xaml.cs` (setup,
+tiles, layout), `.Trash.cs`, `.Magnifier.cs`, `.AutoHide.cs` and `.Menus.cs` (right-click menu, hover window list,
+Win+1…9): put new dock behavior in the file it belongs to.
+
 ## Notch rings
 
 The black right-edge notch (`Bar/NotchWindow`, popup `Bar/NotchPopup`) isn't an `IWidget` either. A new ring = a

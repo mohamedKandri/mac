@@ -10,20 +10,13 @@ namespace MacShell.Bar;
 //
 // It's a layered window with a 1/255-alpha fill: fully transparent pixels would let the mouse pass through and we'd
 // never hear about it; 1/255 is invisible but still "there". Never focused, not in Alt+Tab.
-internal sealed class DockEdgeTrigger : Window
+internal sealed class DockEdgeTrigger : OverlayWindow
 {
     public event Action? Touched;
 
-    public DockEdgeTrigger()
+    public DockEdgeTrigger() : base(clickThrough: false)
     {
-        WindowStyle = WindowStyle.None;
-        AllowsTransparency = true;
         Background = new SolidColorBrush(Color.FromArgb(1, 0, 0, 0));
-        ResizeMode = ResizeMode.NoResize;
-        ShowInTaskbar = false;
-        ShowActivated = false;
-        Topmost = true;
-        SourceInitialized += (_, _) => WindowStyles.MakeToolWindow(new WindowInteropHelper(this).Handle, noActivate: true);
         MouseEnter += (_, _) => Touched?.Invoke();
     }
 

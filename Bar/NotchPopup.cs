@@ -11,30 +11,20 @@ namespace MacShell.Bar;
 
 // The black speech bubble left of the notch (canvas artboard "Edge notch"): title, one main bar, a short list.
 // Click-through and never focused: it only shows information while the mouse is on a ring.
-internal sealed class NotchPopup : Window
+internal sealed class NotchPopup : OverlayWindow
 {
-    private const double BubbleWidth = 300, PointerWidth = 14, PointerCenter = 44;   // pointer: 22 px tall, centered 44 px down
-    private static readonly SolidColorBrush Muted = Frozen(Color.FromRgb(0x9A, 0x9A, 0xA2));
-    private static readonly SolidColorBrush Soft = Frozen(Color.FromRgb(0xC8, 0xC8, 0xCE));
-    private static readonly SolidColorBrush Track = Frozen(Color.FromRgb(0x2A, 0x2A, 0x2E));
+    private const double BubbleWidth = 300, PointerCenter = 44;   // pointer: 14×22 px, centered 44 px down
+    private static readonly SolidColorBrush Muted = Frozen.Brush(Color.FromRgb(0x9A, 0x9A, 0xA2));
+    private static readonly SolidColorBrush Soft = Frozen.Brush(Color.FromRgb(0xC8, 0xC8, 0xCE));
+    private static readonly SolidColorBrush Track = Frozen.Brush(Color.FromRgb(0x2A, 0x2A, 0x2E));
 
     private readonly StackPanel _content = new() { Width = BubbleWidth - 36 };
     private bool _animated;
     private string _shownKey = "";
 
-    public NotchPopup()
+    public NotchPopup() : base(clickThrough: true)
     {
-        WindowStyle = WindowStyle.None;
-        AllowsTransparency = true;
-        Background = Brushes.Transparent;
-        ResizeMode = ResizeMode.NoResize;
-        ShowInTaskbar = false;
-        ShowActivated = false;
-        Topmost = true;
-        UseLayoutRounding = true;
         SizeToContent = SizeToContent.WidthAndHeight;
-        Foreground = Brushes.White;
-        SetResourceReference(FontFamilyProperty, ThemeKeys.FontFamily);
 
         var bubble = new Border
         {
@@ -57,7 +47,6 @@ internal sealed class NotchPopup : Window
         // Margin around everything leaves room for the shadow inside the (transparent) window.
         Content = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(24, 8, 0, 24), Children = { new Grid { Children = { shadow, bubble } }, pointer } };
 
-        SourceInitialized += (_, _) => WindowStyles.MakeClickThroughOverlay(new WindowInteropHelper(this).Handle);
     }
 
     // Fills in (or refreshes) the details; shows the window with a short fade the first time.
@@ -70,7 +59,7 @@ internal sealed class NotchPopup : Window
         _shownKey = key;
 
         _content.Children.Clear();
-        var accentBrush = Frozen(accent);
+        var accentBrush = Frozen.Brush(accent);
 
         var header = new DockPanel { Margin = new Thickness(0, 0, 0, 12) };
         var subtitle = new TextBlock { Text = details.Subtitle, FontSize = 11, Foreground = Muted, VerticalAlignment = VerticalAlignment.Center };
@@ -145,12 +134,5 @@ internal sealed class NotchPopup : Window
         bar.Children.Add(track);
         bar.Children.Add(new Border { Background = fill, CornerRadius = new CornerRadius(height / 2) });
         return bar;
-    }
-
-    private static SolidColorBrush Frozen(Color color)
-    {
-        var brush = new SolidColorBrush(color);
-        brush.Freeze();
-        return brush;
     }
 }

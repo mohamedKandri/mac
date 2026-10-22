@@ -33,8 +33,6 @@ internal sealed class WinNumberKeys : IDisposable
         _hook = Win32.SetWindowsHookExW(WH_KEYBOARD_LL, _proc, Win32.GetModuleHandleW(null), 0);
     }
 
-    public bool IsActive => _hook != IntPtr.Zero;
-
     private IntPtr HookProc(int code, IntPtr message, IntPtr data)
     {
         if (code == HC_ACTION)
@@ -42,7 +40,7 @@ internal sealed class WinNumberKeys : IDisposable
             var key = Marshal.PtrToStructure<Win32.KBDLLHOOKSTRUCT>(data);
             int msg = (int)message;
             bool digit = key.vkCode is >= '1' and <= '9';
-            if (digit && (key.flags & LLKHF_INJECTED) == 0 && Down(VK_LWIN) | Down(VK_RWIN) && !Down(VK_CONTROL) && !Down(VK_MENU))
+            if (digit && (key.flags & LLKHF_INJECTED) == 0 && (Down(VK_LWIN) || Down(VK_RWIN)) && !Down(VK_CONTROL) && !Down(VK_MENU))
             {
                 if (msg is WM_KEYDOWN or WM_SYSKEYDOWN)
                 {

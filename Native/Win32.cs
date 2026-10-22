@@ -342,10 +342,6 @@ internal static class Win32
     [return: MarshalAs(UnmanagedType.Bool)]
     public static extern bool IsWindowVisible(IntPtr hwnd);
 
-    [DllImport("user32.dll")]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    public static extern bool IsWindow(IntPtr hwnd);
-
     // True when minimized.
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]

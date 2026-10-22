@@ -12,26 +12,16 @@ namespace MacShell.Bar;
 // The list of an app's windows shown above its dock tile while hovering (apps with 2+ windows), like the
 // taskbar's hover previews but titles only: click a title to switch to it, × to close that window.
 // Black like the dock. Never takes focus (WS_EX_NOACTIVATE), so the app you're in stays active.
-internal sealed class DockWindowList : Window
+internal sealed class DockWindowList : OverlayWindow
 {
     private const int MaxTitle = 44;
-    private static readonly SolidColorBrush RowHover = Frozen(Color.FromArgb(0x2E, 0xFF, 0xFF, 0xFF));
-    private static readonly SolidColorBrush Muted = Frozen(Color.FromRgb(0x9A, 0x9A, 0xA2));
-    private static readonly Geometry CloseIcon = FrozenGeometry("M6,6 L18,18 M18,6 L6,18");
+    private static readonly SolidColorBrush RowHover = Frozen.Brush(Color.FromArgb(0x2E, 0xFF, 0xFF, 0xFF));
+    private static readonly SolidColorBrush Muted = Frozen.Brush(Color.FromRgb(0x9A, 0x9A, 0xA2));
+    private static readonly Geometry CloseIcon = Frozen.Geometry("M6,6 L18,18 M18,6 L6,18");
 
-    public DockWindowList(string appName, IReadOnlyList<WindowTracker.AppWindow> windows, Action<IntPtr> activate, Action<IntPtr> close)
+    public DockWindowList(string appName, IReadOnlyList<WindowTracker.AppWindow> windows, Action<IntPtr> activate, Action<IntPtr> close) : base(clickThrough: false)
     {
-        WindowStyle = WindowStyle.None;
-        AllowsTransparency = true;
-        Background = Brushes.Transparent;
-        ResizeMode = ResizeMode.NoResize;
-        ShowInTaskbar = false;
-        ShowActivated = false;
-        Topmost = true;
-        UseLayoutRounding = true;
         SizeToContent = SizeToContent.WidthAndHeight;
-        Foreground = Brushes.White;
-        SetResourceReference(FontFamilyProperty, ThemeKeys.FontFamily);
 
         var rows = new StackPanel();
         rows.Children.Add(new TextBlock { Text = appName, FontSize = 11, Foreground = Muted, Margin = new Thickness(10, 2, 10, 4) });
@@ -45,7 +35,7 @@ internal sealed class DockWindowList : Window
         Content = new Border
         {
             Background = Brushes.Black,
-            BorderBrush = Frozen(Color.FromArgb(0x33, 0xFF, 0xFF, 0xFF)),
+            BorderBrush = Frozen.Brush(Color.FromArgb(0x33, 0xFF, 0xFF, 0xFF)),
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(12),
             Padding = new Thickness(5),
@@ -53,7 +43,6 @@ internal sealed class DockWindowList : Window
             MaxWidth = 360,
             Child = rows,
         };
-        SourceInitialized += (_, _) => WindowStyles.MakeToolWindow(new WindowInteropHelper(this).Handle, noActivate: true);
     }
 
     // Bottom edge at `bottomPx`, centered on `centerXPx` (physical pixels).
@@ -116,19 +105,5 @@ internal sealed class DockWindowList : Window
         };
         row.MouseLeftButtonUp += (_, _) => activate();
         return row;
-    }
-
-    private static SolidColorBrush Frozen(Color color)
-    {
-        var brush = new SolidColorBrush(color);
-        brush.Freeze();
-        return brush;
-    }
-
-    private static Geometry FrozenGeometry(string data)
-    {
-        var geometry = Geometry.Parse(data);
-        geometry.Freeze();
-        return geometry;
     }
 }

@@ -25,15 +25,6 @@ public partial class DockWindow : ShellWindow
 
     private readonly Action<string, string> _notify;
     private readonly AppCommands _commands;
-    private DockMenu? _menu;
-    private WinNumberKeys? _numberKeys;
-
-    // Hover window list (Bar/DockWindowList): opens after resting on a tile, stays while the mouse is on it.
-    private static readonly TimeSpan ListOpenDelay = TimeSpan.FromMilliseconds(400), ListCloseDelay = TimeSpan.FromMilliseconds(300);
-    private readonly System.Windows.Threading.DispatcherTimer _listOpenTimer = new() { Interval = ListOpenDelay };
-    private readonly System.Windows.Threading.DispatcherTimer _listCloseTimer = new() { Interval = ListCloseDelay };
-    private DockWindowList? _list;
-    private DockAppTile? _listTile, _hoverTile;
     private readonly WindowTracker _windows = new();
     private bool _binFull;
     private List<AppCatalog.App> _catalog = [];
@@ -47,24 +38,15 @@ public partial class DockWindow : ShellWindow
         InitializeComponent();
         // Always white on black, whatever the Windows theme (like the notch): these override the theme's colors
         // for everything inside the dock (running dots, dividers, Trash tile).
-        Resources[ThemeKeys.Foreground] = Frozen(System.Windows.Media.Colors.White);
-        Resources[ThemeKeys.Hairline] = Frozen(System.Windows.Media.Color.FromArgb(0x33, 0xFF, 0xFF, 0xFF));
-        Resources[ThemeKeys.Pressed] = Frozen(System.Windows.Media.Color.FromArgb(0x24, 0xFF, 0xFF, 0xFF));
+        Resources[ThemeKeys.Foreground] = Frozen.Brush(System.Windows.Media.Colors.White);
+        Resources[ThemeKeys.Hairline] = Frozen.Brush(System.Windows.Media.Color.FromArgb(0x33, 0xFF, 0xFF, 0xFF));
+        Resources[ThemeKeys.Pressed] = Frozen.Brush(System.Windows.Media.Color.FromArgb(0x24, 0xFF, 0xFF, 0xFF));
         Root.SizeChanged += (_, _) => UpdateShape();
         _config = config;
         _notify = notify;
         _commands = commands;
         SetUpNumberKeys();
-        _listOpenTimer.Tick += (_, _) =>
-        {
-            _listOpenTimer.Stop();
-            if (_hoverTile is not null) ShowWindowList(_hoverTile);
-        };
-        _listCloseTimer.Tick += (_, _) =>
-        {
-            _listCloseTimer.Stop();
-            if (_hoverTile is null && _list?.IsMouseOver != true) CloseWindowList();
-        };
+        SetUpWindowList();
         ApplySizes();
         BuildTiles();
         _windows.Changed += UpdateRunning;
@@ -116,181 +98,6 @@ public partial class DockWindow : ShellWindow
         Dispatcher.InvokeAsync(Reposition, System.Windows.Threading.DispatcherPriority.Loaded);
     }
 
-    // ---------------- Trash (dock step 5) ----------------
-
-    private void UpdateTrash()
-    {
-        _binFull = !RecycleBin.IsEmpty();
-        TrashIcon.Data = (System.Windows.Media.Geometry)FindResource(_binFull ? "Icon.TrashFull" : "Icon.Trash");
-        TrashIcon.FillData = _binFull ? (System.Windows.Media.Geometry)FindResource("Icon.TrashPaper") : null;
-        if (_hovering) LoadMagnifier();   // keep the magnified copy in sync
-    }
-
-    private void OnTrashClick(object sender, RoutedEventArgs e) => RecycleBin.Open();
-
-    // Accept only files/folders from Explorer (or any app that drags files); show that the drop will land.
-    private void OnTrashDragOver(object sender, DragEventArgs e)
-    {
-        bool files = e.Data.GetDataPresent(DataFormats.FileDrop);
-        e.Effects = files ? DragDropEffects.Move : DragDropEffects.None;
-        SetTrashHighlight(files);
-        e.Handled = true;
-    }
-
-    private void OnTrashDragLeave(object sender, DragEventArgs e) => SetTrashHighlight(false);
-
-    private void OnTrashDrop(object sender, DragEventArgs e)
-    {
-        SetTrashHighlight(false);
-        if (e.Data.GetData(DataFormats.FileDrop) is not string[] paths || paths.Length == 0) return;
-        RecycleBin.Recycle(paths,
-            failed: error => Dispatcher.InvokeAsync(() => _notify("Couldn't move to the Recycle Bin", error)),
-            done: () => Dispatcher.InvokeAsync(UpdateTrash));
-        e.Handled = true;
-    }
-
-    private void SetTrashHighlight(bool on)
-    {
-        TrashTile.SetResourceReference(System.Windows.Controls.Border.BorderBrushProperty, on ? ThemeKeys.Selection : ThemeKeys.Hairline);
-        TrashTile.BorderThickness = new Thickness(on ? 2 : 1);
-    }
-
-    // ---------------- Magnification + app name (dock step 4) ----------------
-
-    private const double LabelSpace = 34;        // room above a magnified tile for its name
-    private const double Smoothing = 0.55;       // per frame: how far tiles move towards their target size (0.3 felt laggy)
-    private static readonly TimeSpan BounceTime = TimeSpan.FromMilliseconds(280);
-
-    private DockMagnifier? _magnifier;
-    private List<DockMagnifier.Item> _items = [];
-    private readonly List<FrameworkElement> _hiddenWhileMagnified = [];
-    private double[] _scales = [];
-    private bool _hovering, _looping;
-    private int _framesShown;
-    private double _mouseX;
-    private int _bounceIndex = -1;
-    private DateTime _bounceStart;
-
-    private double Scale => (Monitors.Find(DeviceName)?.Dpi ?? 96) / 96.0;
-
-    // For the `--open dock-hover` developer switch: magnify as if the mouse sat on tile `index`
-    // (it stays until the real mouse enters and leaves the dock).
-    public void SimulateHover(int index)
-    {
-        BeginHover();
-        if (_items.Count == 0) return;
-        _mouseX = _items[Math.Clamp(index, 0, _items.Count - 1)].CenterX;
-        StartLoop();
-    }
-
-    private void BeginHover()
-    {
-        _hovering = true;
-        _magnifier ??= new DockMagnifier(_config.Dock.MagnifiedSize - _config.Dock.TileSize + LabelSpace);
-        LoadMagnifier();
-        _magnifier.PlaceOver(WindowStyles.RectOf(new System.Windows.Interop.WindowInteropHelper(this).Handle), Scale);
-        _framesShown = 0;
-    }
-
-    // Copies the current tiles into the overlay, with their positions in panel coordinates.
-    private void LoadMagnifier()
-    {
-        if (_magnifier is null) return;
-        _items.Clear();
-        _hiddenWhileMagnified.Clear();
-        foreach (var tile in AppTiles.Children.OfType<DockAppTile>().Concat(RunningTiles.Children.OfType<DockAppTile>()))
-            Add(tile.IconElement, tile.App.Name, (tile.IconElement as System.Windows.Controls.Image)?.Source, isTrash: false);
-        Add(TrashTile, _binFull ? "Trash (full)" : "Trash", null, isTrash: true);
-        _scales = Enumerable.Repeat(1.0, _items.Count).ToArray();
-        _magnifier.Load(_items);
-        _magnifier.Render(_scales, -1);
-
-        void Add(FrameworkElement element, string name, System.Windows.Media.ImageSource? icon, bool isTrash)
-        {
-            Point bottomCenter = element.TranslatePoint(new Point(element.ActualWidth / 2, element.ActualHeight), Root);
-            _items.Add(new DockMagnifier.Item(icon, isTrash, name, bottomCenter.X, bottomCenter.Y, element.ActualWidth, isTrash && _binFull));
-            _hiddenWhileMagnified.Add(element);
-        }
-    }
-
-    // Per-frame animation, only while needed: CompositionTarget.Rendering fires once per screen refresh while
-    // subscribed (like requestAnimationFrame), so nothing runs when the mouse is elsewhere.
-    private void StartLoop()
-    {
-        if (_looping || _magnifier is null) return;
-        _looping = true;
-        System.Windows.Media.CompositionTarget.Rendering += OnFrame;
-    }
-
-    // Settled while the mouse rests on a tile: stop drawing frames, keep the overlay. The next MouseMove resumes.
-    private void PauseLoop()
-    {
-        _looping = false;
-        System.Windows.Media.CompositionTarget.Rendering -= OnFrame;
-    }
-
-    // Mouse gone and tiles back to normal: show the real icons again and close the overlay. Closing (rather than
-    // hiding) frees its ~12 MB of layered-window pixels; re-creating it on the next hover takes a few ms.
-    private void StopLoop()
-    {
-        PauseLoop();
-        foreach (var element in _hiddenWhileMagnified) element.Opacity = 1;
-        _magnifier?.Close();
-        _magnifier = null;
-    }
-
-    private void OnFrame(object? sender, EventArgs e)
-    {
-        if (_magnifier is null || _items.Count == 0)
-        {
-            StopLoop();
-            return;
-        }
-
-        double maxScale = _config.Dock.MagnifiedSize / _config.Dock.TileSize;
-        double reach = _config.Dock.TileSize * 1.8;   // how far the effect spreads: neighbours reach ~60 px at default sizes
-        int hovered = -1;
-        double nearest = double.MaxValue;
-        bool settled = true;
-        var shown = new double[_items.Count];
-
-        for (int i = 0; i < _items.Count; i++)
-        {
-            double distance = Math.Abs(_mouseX - _items[i].CenterX);
-            if (_hovering && distance < _items[i].Size / 2 + TileGap / 2 && distance < nearest)
-            {
-                hovered = i;
-                nearest = distance;
-            }
-
-            // Cosine falloff: full size under the mouse, fading to normal size at `reach`.
-            double target = _hovering && distance < reach ? 1 + (maxScale - 1) * Math.Cos(distance / reach * Math.PI / 2) : 1;
-            _scales[i] += (target - _scales[i]) * Smoothing;
-            if (Math.Abs(_scales[i] - target) > 0.002 || (!_hovering && Math.Abs(_scales[i] - 1) > 0.002)) settled = false;
-            shown[i] = _scales[i];
-        }
-
-        // Click feedback on the magnified copy (the real tile's own bounce is hidden underneath).
-        var sinceBounce = DateTime.Now - _bounceStart;
-        if (_bounceIndex >= 0 && _bounceIndex < shown.Length && sinceBounce < BounceTime)
-        {
-            shown[_bounceIndex] *= 1 - 0.12 * Math.Sin(Math.PI * sinceBounce / BounceTime);
-            settled = false;
-        }
-
-        _magnifier.Render(shown, hovered);
-
-        // Hide the real icons only once the overlay has drawn its copies (a couple of frames), so nothing blinks.
-        if (++_framesShown == 2)
-            foreach (var element in _hiddenWhileMagnified) element.Opacity = 0;
-
-        if (settled && _framesShown >= 2)
-        {
-            if (_hovering) PauseLoop();
-            else StopLoop();
-        }
-    }
-
     protected override AppBarEdge Edge => AppBarEdge.Bottom;
     protected override bool RoundedCorners => false;
     protected override bool Glass => false;
@@ -320,107 +127,6 @@ public partial class DockWindow : ShellWindow
         }
         return _target;
     };
-
-    // ---------------- Auto-hide (dock.autoHide) ----------------
-
-    private static readonly TimeSpan SlideTime = TimeSpan.FromMilliseconds(150);
-    private static readonly TimeSpan HideDelay = TimeSpan.FromMilliseconds(400);
-
-    private Int32Rect _target;                 // where the dock sits when shown (physical pixels)
-    private DockEdgeTrigger? _trigger;
-    private System.Windows.Threading.DispatcherTimer? _hideTimer;
-    private System.Windows.Threading.DispatcherTimer? _slideTimer;
-    private bool _shown = true;
-
-    protected override bool ReservesSpace => !_config.Dock.AutoHide;
-
-    private void SetUpAutoHide(bool on)
-    {
-        if (!on)
-        {
-            _hideTimer?.Stop();
-            _trigger?.Close();
-            _trigger = null;
-            if (!_shown) SlideIn();
-            return;
-        }
-        if (_trigger is null)
-        {
-            _trigger = new DockEdgeTrigger();
-            _trigger.Touched += SlideIn;
-            _trigger.PlaceAtBottom(DeviceName);
-        }
-        _hideTimer ??= new System.Windows.Threading.DispatcherTimer();
-        _hideTimer.Tick -= OnHideTimer;
-        _hideTimer.Tick += OnHideTimer;
-    }
-
-    private void OnHideTimer(object? sender, EventArgs e)
-    {
-        _hideTimer!.Stop();
-        if (!IsMouseOver) SlideOut();
-    }
-
-    private void ScheduleHide(TimeSpan delay)
-    {
-        if (!_config.Dock.AutoHide || _hideTimer is null) return;
-        _hideTimer.Stop();
-        _hideTimer.Interval = delay;
-        _hideTimer.Start();
-    }
-
-    private void SlideIn()
-    {
-        _hideTimer?.Stop();
-        if (_shown) return;
-        _shown = true;
-        // Move below the screen first, then show: otherwise it flashes at its final spot for a frame.
-        WindowStyles.MoveTo(new System.Windows.Interop.WindowInteropHelper(this).Handle, _target.X, ScreenBottom);
-        if (!IsVisible) Show();
-        Slide(fromY: ScreenBottom, toY: _target.Y, then: null);
-    }
-
-    private void SlideOut()
-    {
-        if (!_shown || !_config.Dock.AutoHide) return;
-        _shown = false;
-        _hovering = false;
-        StopLoop();
-        Slide(fromY: _target.Y, toY: ScreenBottom, then: Hide);
-    }
-
-    private int ScreenBottom => Monitors.Find(DeviceName)?.Bounds.Bottom ?? _target.Y + _target.Height;
-
-    // Moves the window vertically over 150 ms with an ease-out curve (fast start, gentle stop).
-    private void Slide(int fromY, int toY, Action? then)
-    {
-        _slideTimer?.Stop();
-        var hwnd = new System.Windows.Interop.WindowInteropHelper(this).Handle;
-        var start = DateTime.Now;
-        WindowStyles.MoveTo(hwnd, _target.X, fromY);
-        _slideTimer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(15) };
-        _slideTimer.Tick += (_, _) =>
-        {
-            double t = Math.Min(1, (DateTime.Now - start) / SlideTime);
-            double eased = 1 - Math.Pow(1 - t, 3);
-            WindowStyles.MoveTo(hwnd, _target.X, (int)Math.Round(fromY + (toY - fromY) * eased));
-            if (t < 1) return;
-            _slideTimer!.Stop();
-            then?.Invoke();
-        };
-        _slideTimer.Start();
-    }
-
-    protected override void ShowAfterFullscreen()
-    {
-        if (!_config.Dock.AutoHide)
-        {
-            Show();
-            return;
-        }
-        _shown = false;                         // stays hidden until the mouse reaches the edge again
-        _trigger?.PlaceAtBottom(DeviceName);
-    }
 
     public void Apply(AppConfig config)
     {
@@ -478,143 +184,8 @@ public partial class DockWindow : ShellWindow
         var tile = new DockAppTile(app, _config.Dock.TileSize, _iconPixels) { Margin = new Thickness(0, 0, TileGap, 0), PinEntry = pin };
         tile.Clicked += OnTileClicked;
         tile.RightClicked += OnTileRightClicked;
-        tile.MouseEnter += (_, _) =>
-        {
-            _hoverTile = tile;
-            _listCloseTimer.Stop();
-            if (_list is not null) ShowWindowList(tile);   // already showing a list: follow the mouse at once
-            else
-            {
-                _listOpenTimer.Stop();
-                _listOpenTimer.Start();
-            }
-        };
-        tile.MouseLeave += (_, _) =>
-        {
-            if (_hoverTile == tile) _hoverTile = null;
-            _listOpenTimer.Stop();
-            _listCloseTimer.Stop();
-            _listCloseTimer.Start();
-        };
+        WatchHover(tile);
         return tile;
-    }
-
-    // ---------------- Window list on hover ----------------
-
-    // Shows `tile`'s windows above it when it has two or more (one window: the click already goes straight there).
-    private void ShowWindowList(DockAppTile tile)
-    {
-        if (_list is not null && _listTile == tile) return;
-        CloseWindowList();
-        _windows.Refresh();   // fresh windows and titles
-        if (tile.Windows.Count < 2 || _menu is not null) return;
-
-        _listTile = tile;
-        _list = new DockWindowList(tile.App.Name, tile.Windows,
-            activate: hwnd =>
-            {
-                CloseWindowList();
-                WindowTracker.Activate(hwnd);
-            },
-            close: hwnd =>
-            {
-                CloseWindowList();
-                WindowTracker.Close(hwnd);
-            });
-        _list.MouseEnter += (_, _) => _listCloseTimer.Stop();
-        _list.MouseLeave += (_, _) =>
-        {
-            _listCloseTimer.Stop();
-            _listCloseTimer.Start();
-        };
-
-        // Above the magnified tile and its name label (the magnifier's headroom), centered on the tile.
-        Point center = tile.PointToScreen(new Point(tile.ActualWidth / 2, 0));
-        Point dockTop = PointToScreen(new Point(0, 0));
-        double headroom = _config.Dock.MagnifiedSize - _config.Dock.TileSize + LabelSpace + 4;
-        _list.PlaceAbove((int)center.X, (int)Math.Round(dockTop.Y - headroom * Scale), Scale);
-    }
-
-    private void CloseWindowList()
-    {
-        _list?.Close();   // closed, not hidden: a layered window keeps its pixels while hidden
-        _list = null;
-        _listTile = null;
-    }
-
-    // ---------------- Win+1 … Win+9 (dock.numberShortcuts) ----------------
-
-    private void SetUpNumberKeys()
-    {
-        if (_config.Dock.NumberShortcuts == (_numberKeys is not null)) return;
-        _numberKeys?.Dispose();
-        _numberKeys = null;
-        if (!_config.Dock.NumberShortcuts) return;
-        _numberKeys = new WinNumberKeys();
-        _numberKeys.Pressed += OpenByNumber;
-    }
-
-    // Win+N = clicking the Nth app (pinned, then running); Shift+Win+N = a new window of it.
-    private void OpenByNumber(int index, bool newWindow)
-    {
-        var tiles = AppTiles.Children.OfType<DockAppTile>().Concat(RunningTiles.Children.OfType<DockAppTile>()).ToList();
-        if (index >= tiles.Count) return;
-        if (newWindow) AppCatalog.Launch(tiles[index].App);
-        else OnTileClicked(tiles[index]);
-    }
-
-    // For the `--open dock-windows` developer switch: the window list of the first app with 2+ windows.
-    public void OpenFirstWindowList()
-    {
-        _windows.Refresh();
-        if (AppTiles.Children.OfType<DockAppTile>().Concat(RunningTiles.Children.OfType<DockAppTile>()).FirstOrDefault(t => t.Windows.Count >= 2) is DockAppTile tile)
-            ShowWindowList(tile);
-    }
-
-    // For the `--open dock-menu` developer switch: the first app's right-click menu.
-    public void OpenFirstMenu()
-    {
-        if (AppTiles.Children.OfType<DockAppTile>().Concat(RunningTiles.Children.OfType<DockAppTile>()).FirstOrDefault() is DockAppTile tile)
-            OnTileRightClicked(tile);
-    }
-
-    // Right-click: the taskbar-style menu (Bar/DockMenu), above the tile.
-    private void OnTileRightClicked(DockAppTile tile)
-    {
-        _listOpenTimer.Stop();
-        CloseWindowList();
-        _menu?.SafeClose();
-        _windows.Refresh();   // current windows and titles
-        var app = tile.App;
-        Action? pin = null, unpin = null;
-        if (tile.PinEntry is string entry)
-            unpin = () => _commands.EditPinned(list =>
-            {
-                list.Remove(entry);
-                return list;
-            });
-        else
-            pin = () => _commands.EditPinned(list =>
-            {
-                list.Add(PinName(app));
-                return list;
-            });
-        // The jump list is filed under the app's AppUserModelID: the AppsFolder parsing name, or (for a tile made
-        // from an exe path) the ID its windows carry.
-        string? appId = app.IsFile ? tile.Windows.FirstOrDefault(w => w.AppId is not null)?.AppId : app.ParsingName;
-        var recent = appId is null ? [] : JumpLists.Recent(appId, 8);
-        _menu = new DockMenu(Theme, tile, recent, new DockMenu.Actions(() => AppCatalog.Launch(app), pin, unpin));
-        _menu.Closed += (_, _) => _menu = null;
-        _menu.ShowAbove(tile, this);
-    }
-
-    // What to write in dock.pinned for an app: its Start menu name when that's unambiguous (readable in the
-    // file), else its app ID, else its exe path.
-    private string PinName(AppCatalog.App app)
-    {
-        if (app.IsFile) return app.ParsingName;
-        bool unique = _catalog.Count(a => a.Name.Equals(app.Name, StringComparison.OrdinalIgnoreCase)) == 1;
-        return unique ? app.Name : app.ParsingName;
     }
 
     // Matches the open windows to tiles: pinned tiles get their dots; other apps get tiles of their own after the
@@ -745,12 +316,5 @@ public partial class DockWindow : ShellWindow
         Shape.Data = System.Windows.Media.Geometry.Parse(string.Format(System.Globalization.CultureInfo.InvariantCulture,
             "M0,{1} Q{2},{1} {2},{3} L{2},{4} Q{2},0 {5},0 L{6},0 Q{7},0 {7},{4} L{7},{3} Q{7},{1} {0},{1} Z",
             w, h, Flare, h - Flare, CornerRadius, Flare + CornerRadius, w - Flare - CornerRadius, w - Flare));
-    }
-
-    private static System.Windows.Media.SolidColorBrush Frozen(System.Windows.Media.Color color)
-    {
-        var brush = new System.Windows.Media.SolidColorBrush(color);
-        brush.Freeze();
-        return brush;
     }
 }
