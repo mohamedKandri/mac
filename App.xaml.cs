@@ -113,6 +113,7 @@ public partial class App : Application
                 "calendar" => () => bars.FindWidget<ClockWidget>()?.OpenCalendar(),
                 "dock-hover" => () => bars.Dock?.SimulateHover(1),
                 "dock-menu" => () => bars.Dock?.OpenFirstMenu(),
+                "dock-windows" => () => bars.Dock?.OpenFirstWindowList(),
                 "notch" => () => bars.Notch?.OpenFirstPopup(),
                 "island" => () => bars.Island?.Expand(pin: true),
                 _ => null,

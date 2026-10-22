@@ -27,6 +27,13 @@ public partial class DockWindow : ShellWindow
     private readonly AppCommands _commands;
     private DockMenu? _menu;
     private WinNumberKeys? _numberKeys;
+
+    // Hover window list (Bar/DockWindowList): opens after resting on a tile, stays while the mouse is on it.
+    private static readonly TimeSpan ListOpenDelay = TimeSpan.FromMilliseconds(400), ListCloseDelay = TimeSpan.FromMilliseconds(300);
+    private readonly System.Windows.Threading.DispatcherTimer _listOpenTimer = new() { Interval = ListOpenDelay };
+    private readonly System.Windows.Threading.DispatcherTimer _listCloseTimer = new() { Interval = ListCloseDelay };
+    private DockWindowList? _list;
+    private DockAppTile? _listTile, _hoverTile;
     private readonly WindowTracker _windows = new();
     private bool _binFull;
     private List<AppCatalog.App> _catalog = [];
@@ -48,6 +55,16 @@ public partial class DockWindow : ShellWindow
         _notify = notify;
         _commands = commands;
         SetUpNumberKeys();
+        _listOpenTimer.Tick += (_, _) =>
+        {
+            _listOpenTimer.Stop();
+            if (_hoverTile is not null) ShowWindowList(_hoverTile);
+        };
+        _listCloseTimer.Tick += (_, _) =>
+        {
+            _listCloseTimer.Stop();
+            if (_hoverTile is null && _list?.IsMouseOver != true) CloseWindowList();
+        };
         ApplySizes();
         BuildTiles();
         _windows.Changed += UpdateRunning;
@@ -461,7 +478,68 @@ public partial class DockWindow : ShellWindow
         var tile = new DockAppTile(app, _config.Dock.TileSize, _iconPixels) { Margin = new Thickness(0, 0, TileGap, 0), PinEntry = pin };
         tile.Clicked += OnTileClicked;
         tile.RightClicked += OnTileRightClicked;
+        tile.MouseEnter += (_, _) =>
+        {
+            _hoverTile = tile;
+            _listCloseTimer.Stop();
+            if (_list is not null) ShowWindowList(tile);   // already showing a list: follow the mouse at once
+            else
+            {
+                _listOpenTimer.Stop();
+                _listOpenTimer.Start();
+            }
+        };
+        tile.MouseLeave += (_, _) =>
+        {
+            if (_hoverTile == tile) _hoverTile = null;
+            _listOpenTimer.Stop();
+            _listCloseTimer.Stop();
+            _listCloseTimer.Start();
+        };
         return tile;
+    }
+
+    // ---------------- Window list on hover ----------------
+
+    // Shows `tile`'s windows above it when it has two or more (one window: the click already goes straight there).
+    private void ShowWindowList(DockAppTile tile)
+    {
+        if (_list is not null && _listTile == tile) return;
+        CloseWindowList();
+        _windows.Refresh();   // fresh windows and titles
+        if (tile.Windows.Count < 2 || _menu is not null) return;
+
+        _listTile = tile;
+        _list = new DockWindowList(tile.App.Name, tile.Windows,
+            activate: hwnd =>
+            {
+                CloseWindowList();
+                WindowTracker.Activate(hwnd);
+            },
+            close: hwnd =>
+            {
+                CloseWindowList();
+                WindowTracker.Close(hwnd);
+            });
+        _list.MouseEnter += (_, _) => _listCloseTimer.Stop();
+        _list.MouseLeave += (_, _) =>
+        {
+            _listCloseTimer.Stop();
+            _listCloseTimer.Start();
+        };
+
+        // Above the magnified tile and its name label (the magnifier's headroom), centered on the tile.
+        Point center = tile.PointToScreen(new Point(tile.ActualWidth / 2, 0));
+        Point dockTop = PointToScreen(new Point(0, 0));
+        double headroom = _config.Dock.MagnifiedSize - _config.Dock.TileSize + LabelSpace + 4;
+        _list.PlaceAbove((int)center.X, (int)Math.Round(dockTop.Y - headroom * Scale), Scale);
+    }
+
+    private void CloseWindowList()
+    {
+        _list?.Close();   // closed, not hidden: a layered window keeps its pixels while hidden
+        _list = null;
+        _listTile = null;
     }
 
     // ---------------- Win+1 … Win+9 (dock.numberShortcuts) ----------------
@@ -485,6 +563,14 @@ public partial class DockWindow : ShellWindow
         else OnTileClicked(tiles[index]);
     }
 
+    // For the `--open dock-windows` developer switch: the window list of the first app with 2+ windows.
+    public void OpenFirstWindowList()
+    {
+        _windows.Refresh();
+        if (AppTiles.Children.OfType<DockAppTile>().Concat(RunningTiles.Children.OfType<DockAppTile>()).FirstOrDefault(t => t.Windows.Count >= 2) is DockAppTile tile)
+            ShowWindowList(tile);
+    }
+
     // For the `--open dock-menu` developer switch: the first app's right-click menu.
     public void OpenFirstMenu()
     {
@@ -495,6 +581,8 @@ public partial class DockWindow : ShellWindow
     // Right-click: the taskbar-style menu (Bar/DockMenu), above the tile.
     private void OnTileRightClicked(DockAppTile tile)
     {
+        _listOpenTimer.Stop();
+        CloseWindowList();
         _menu?.SafeClose();
         _windows.Refresh();   // current windows and titles
         var app = tile.App;
@@ -598,6 +686,8 @@ public partial class DockWindow : ShellWindow
     // with several windows: bring up its back-most one, so repeated clicks walk through all of them.
     private void OnTileClicked(DockAppTile tile)
     {
+        _listOpenTimer.Stop();
+        CloseWindowList();
         _bounceIndex = _items.FindIndex(i => i.Name == tile.App.Name && !i.IsTrash);
         _bounceStart = DateTime.Now;
         StartLoop();
@@ -622,6 +712,9 @@ public partial class DockWindow : ShellWindow
         _windows.Dispose();
         _menu?.SafeClose();
         _numberKeys?.Dispose();
+        _listOpenTimer.Stop();
+        _listCloseTimer.Stop();
+        CloseWindowList();
         base.OnClosed(e);
     }
 
