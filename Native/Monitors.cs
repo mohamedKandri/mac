@@ -7,7 +7,8 @@ namespace MacShell.Native;
 // Monitors are identified by device name ("\\.\DISPLAY1"): HMONITOR handles change on every layout change.
 internal static class Monitors
 {
-    public readonly record struct Info(string DeviceName, bool IsPrimary, Win32.RECT Bounds, uint Dpi);
+    // WorkArea = Bounds minus the space reserved by the menu bar, the dock and any other AppBar (physical pixels).
+    public readonly record struct Info(string DeviceName, bool IsPrimary, Win32.RECT Bounds, uint Dpi, Win32.RECT WorkArea);
 
     // Primary first, then the others in Windows' order.
     public static List<Info> All()
@@ -23,7 +24,7 @@ internal static class Monitors
 
     public static Info Primary() =>
         Describe(Win32.MonitorFromPoint(new Win32.POINT(), Win32.MONITOR_DEFAULTTOPRIMARY))
-        ?? new Info("", true, new Win32.RECT { Right = 1920, Bottom = 1080 }, 96);
+        ?? new Info("", true, new Win32.RECT { Right = 1920, Bottom = 1080 }, 96, new Win32.RECT { Right = 1920, Bottom = 1080 });
 
     public static Info? Find(string deviceName)
     {
@@ -67,6 +68,6 @@ internal static class Monitors
         var info = new Win32.MONITORINFOEX { cbSize = (uint)Marshal.SizeOf<Win32.MONITORINFOEX>(), szDevice = "" };
         if (monitor == IntPtr.Zero || !Win32.GetMonitorInfoEx(monitor, ref info)) return null;
         uint dpi = Win32.GetDpiForMonitor(monitor, Win32.MDT_EFFECTIVE_DPI, out uint x, out _) == 0 ? x : 96;
-        return new Info(info.szDevice, (info.dwFlags & Win32.MONITORINFOF_PRIMARY) != 0, info.rcMonitor, dpi);
+        return new Info(info.szDevice, (info.dwFlags & Win32.MONITORINFOF_PRIMARY) != 0, info.rcMonitor, dpi, info.rcWork);
     }
 }

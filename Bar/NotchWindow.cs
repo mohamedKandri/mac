@@ -13,6 +13,7 @@ namespace MacShell.Bar;
 
 // The solid black notch on the right edge of the primary monitor (canvas artboard "Edge notch"): one ring per
 // `notch.rings` entry, and a black speech-bubble popup with details while the mouse is on a ring.
+// Drag it up or down along the edge; where it was left is remembered in `notch-position.txt` next to the exe.
 //
 // A layered window (AllowsTransparency) so the curved flares where it meets the screen edge are truly see-through
 // and pass clicks to what's behind. Solid black on purpose: it reads as hardware, in front of the glass bar and dock.
@@ -31,6 +32,15 @@ internal sealed class NotchWindow : Window
     private NotchRing? _popupRing;
     private int _tick;
     private bool _hiddenForFullscreen;
+
+    // Vertical position: 0 = top of the free area (below the menu bar), 1 = bottom (above the dock), 0.5 = centered.
+    // A fraction rather than pixels, so it still makes sense after a resolution or scale change.
+    private static readonly string PositionFile = System.IO.Path.Combine(AppContext.BaseDirectory, "notch-position.txt");
+    private const double DragThreshold = 4;   // px the mouse must move before a press becomes a drag (else it's a hover)
+    private double _position = LoadPosition();
+    private bool _pressed, _dragging;
+    private double _pressY;                   // cursor y (physical px) at press
+    private int _pressTop;                    // window top (physical px) at press
 
     public string DeviceName { get; }
 
@@ -63,6 +73,10 @@ internal sealed class NotchWindow : Window
             ClosePopup();
         };
         MouseLeave += (_, _) => _hideTimer.Start();
+        MouseLeftButtonDown += OnPress;
+        MouseMove += OnDrag;
+        MouseLeftButtonUp += (_, _) => EndDrag();
+        LostMouseCapture += (_, _) => EndDrag();
         DpiChanged += (_, _) => Dispatcher.InvokeAsync(Place, DispatcherPriority.Loaded);
     }
 
@@ -162,20 +176,92 @@ internal sealed class NotchWindow : Window
         public int Shown { get; set; } = -1;
     }
 
-    // Pinned to the right edge, vertically centered on the monitor (physical pixels).
+    // Pinned to the right edge of the monitor, at `_position` within the work area (physical pixels).
     public void Place()
     {
         if (Monitors.Find(DeviceName) is not Monitors.Info monitor) return;
         double scale = monitor.Dpi / 96.0;
         int w = (int)Math.Round(TotalWidth * scale), h = (int)Math.Round(Height * scale);
-        var m = monitor.Bounds;
+        var (top, range) = DragRange(monitor, h);
         if (!IsVisible && !_hiddenForFullscreen) Show();
         WindowStyles.PlaceOnTop(new WindowInteropHelper(this).Handle,
-            new Int32Rect(m.Right - w, m.Top + (m.Bottom - m.Top - h) / 2, w, h));
+            new Int32Rect(monitor.Bounds.Right - w, top + (int)Math.Round(range * _position), w, h));
+    }
+
+    // Where the notch's top may go: from the work area's top (below the menu bar) over `range` pixels, so its
+    // bottom never goes below the work area (above the dock).
+    private static (int Top, int Range) DragRange(Monitors.Info monitor, int height)
+    {
+        var area = monitor.WorkArea;
+        return (area.Top, Math.Max(0, area.Bottom - area.Top - height));
+    }
+
+    // ---------------- Dragging up and down ----------------
+    // Like dragging a window by its title bar, done by hand: on press, capture the mouse (all mouse moves come to
+    // us even outside the notch); past a few px of movement it's a drag and the window follows the cursor.
+
+    private void OnPress(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    {
+        _pressed = true;
+        _pressY = PointToScreen(e.GetPosition(this)).Y;   // PointToScreen gives physical pixels
+        _pressTop = WindowStyles.RectOf(new WindowInteropHelper(this).Handle).Y;
+        CaptureMouse();
+        e.Handled = true;
+    }
+
+    private void OnDrag(object sender, System.Windows.Input.MouseEventArgs e)
+    {
+        if (!_pressed) return;
+        double dy = PointToScreen(e.GetPosition(this)).Y - _pressY;
+        if (!_dragging)
+        {
+            if (Math.Abs(dy) < DragThreshold) return;
+            _dragging = true;
+            _hideTimer.Stop();
+            ClosePopup();
+            Cursor = System.Windows.Input.Cursors.SizeNS;
+        }
+        if (Monitors.Find(DeviceName) is not Monitors.Info monitor) return;
+        var hwnd = new WindowInteropHelper(this).Handle;
+        var rect = WindowStyles.RectOf(hwnd);
+        var (top, range) = DragRange(monitor, rect.Height);
+        int y = Math.Clamp(_pressTop + (int)Math.Round(dy), top, top + range);
+        _position = range > 0 ? (double)(y - top) / range : 0.5;
+        WindowStyles.MoveTo(hwnd, rect.X, y);
+    }
+
+    private void EndDrag()
+    {
+        if (!_pressed) return;
+        _pressed = false;
+        if (IsMouseCaptured) ReleaseMouseCapture();
+        if (!_dragging) return;
+        _dragging = false;
+        Cursor = null;
+        SavePosition(_position);
+        if (!IsMouseOver) _hideTimer.Start();
+    }
+
+    private static double LoadPosition()
+    {
+        try
+        {
+            if (double.TryParse(System.IO.File.ReadAllText(PositionFile).Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out double p))
+                return Math.Clamp(p, 0, 1);
+        }
+        catch (Exception) { }   // no file yet (never dragged) or unreadable: centered
+        return 0.5;
+    }
+
+    private static void SavePosition(double position)
+    {
+        try { System.IO.File.WriteAllText(PositionFile, position.ToString("0.####", CultureInfo.InvariantCulture)); }
+        catch (Exception) { }   // read-only folder: the position just isn't remembered
     }
 
     private void OpenPopup(NotchRing ring, FrameworkElement item)
     {
+        if (_dragging) return;
         _hideTimer.Stop();
         _popupRing = ring;
         _popup ??= new NotchPopup();

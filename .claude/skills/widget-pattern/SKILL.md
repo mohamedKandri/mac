@@ -159,6 +159,7 @@ exist for CPU/memory, so the notch timer samples every `notch.refreshSeconds`). 
   `Process.GetProcesses()` + `TotalProcessorTime` (a handle per process), and only while a popup is open.
 - Effects (shadows) go on a separate element with `CacheMode = BitmapCache`, so text refreshes don't re-blur.
 - `--open notch` opens the first ring's popup for screenshots.
+- The notch can be dragged up/down; its position (0..1 of the work area) lives in `notch-position.txt` next to the exe, not in config.json.
 
 ## Styles and icons
 
