@@ -6,8 +6,9 @@ using MacShell.Widgets;
 
 namespace MacShell.Bar;
 
-// The right-click menu of a dock app, like the taskbar's: the app's open windows (click one to switch to it),
-// then New window / Open, Pin to dock or Unpin from dock, and Close window(s).
+// The right-click menu of a dock app, like the taskbar's: its jump list's recent items (Native/JumpLists), the
+// app's open windows (click one to switch to it), then New window / Open, Pin to dock or Unpin from dock, and
+// Close window(s).
 // Same glass popup as the bar's menus (PopupWindow), opened above the tile.
 internal sealed class DockMenu : PopupWindow
 {
@@ -15,7 +16,7 @@ internal sealed class DockMenu : PopupWindow
 
     private const int MaxTitle = 42;
 
-    public DockMenu(ThemeManager theme, DockAppTile tile, Actions actions) : base(theme)
+    public DockMenu(ThemeManager theme, DockAppTile tile, IReadOnlyList<JumpLists.Item> recent, Actions actions) : base(theme)
     {
         Title = "MacShell Dock Menu";
         var items = new StackPanel();
@@ -24,6 +25,18 @@ internal sealed class DockMenu : PopupWindow
         var header = new TextBlock { Text = tile.App.Name, FontSize = 12, Margin = new Thickness(10, 4, 10, 4), TextTrimming = TextTrimming.CharacterEllipsis };
         header.SetResourceReference(TextBlock.ForegroundProperty, ThemeKeys.Muted);
         items.Children.Add(header);
+
+        // Jump list: recent files / folders, opened like the taskbar does.
+        if (recent.Count > 0)
+        {
+            items.Children.Add(SectionTitle("Recent"));
+            foreach (var item in recent)
+            {
+                string name = item.Name.Length > MaxTitle ? item.Name[..(MaxTitle - 1)] + "…" : item.Name;
+                items.Children.Add(Item(name, null, () => JumpLists.Open(item)));
+            }
+            items.Children.Add(Separator());
+        }
 
         // The app's windows, front to back; the one in front gets a check mark.
         IntPtr front = WindowTracker.Foreground;
@@ -73,6 +86,13 @@ internal sealed class DockMenu : PopupWindow
             action();
         };
         return button;
+    }
+
+    private static TextBlock SectionTitle(string text)
+    {
+        var title = new TextBlock { Text = text, FontSize = 11, Margin = new Thickness(10, 2, 10, 2) };
+        title.SetResourceReference(TextBlock.ForegroundProperty, ThemeKeys.Muted);
+        return title;
     }
 
     private static Border Separator()

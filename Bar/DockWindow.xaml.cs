@@ -599,7 +599,11 @@ public partial class DockWindow : ShellWindow
                 list.Add(PinName(app));
                 return list;
             });
-        _menu = new DockMenu(Theme, tile, new DockMenu.Actions(() => AppCatalog.Launch(app), pin, unpin));
+        // The jump list is filed under the app's AppUserModelID: the AppsFolder parsing name, or (for a tile made
+        // from an exe path) the ID its windows carry.
+        string? appId = app.IsFile ? tile.Windows.FirstOrDefault(w => w.AppId is not null)?.AppId : app.ParsingName;
+        var recent = appId is null ? [] : JumpLists.Recent(appId, 8);
+        _menu = new DockMenu(Theme, tile, recent, new DockMenu.Actions(() => AppCatalog.Launch(app), pin, unpin));
         _menu.Closed += (_, _) => _menu = null;
         _menu.ShowAbove(tile, this);
     }
