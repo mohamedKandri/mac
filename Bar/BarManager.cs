@@ -22,6 +22,8 @@ public sealed class BarManager : IDisposable
     private DockWindow? _dock;
     private NotchWindow? _notch;
     private string _notchKey = "";
+    private IslandWindow? _island;
+    private string _islandKey = "";
     private AppConfig _config;
 
     public BarManager(AppConfig config, ThemeManager theme, Action<string, string> notify, AppCommands commands)
@@ -71,6 +73,7 @@ public sealed class BarManager : IDisposable
     // For developer switches.
     public DockWindow? Dock => _dock;
     internal NotchWindow? Notch => _notch;
+    internal IslandWindow? Island => _island;
 
     // For developer switches: a widget on the primary bar.
     public T? FindWidget<T>() where T : class, IWidget => _bars.Values.FirstOrDefault()?.FindWidget<T>();
@@ -133,6 +136,25 @@ public sealed class BarManager : IDisposable
             _notch.Place();
         }
         else _notch?.Place();   // display change: re-center on the edge
+
+        // The island sits in the primary monitor's menu bar and is owned by that bar window (an owned window always
+        // stays above its owner, so the bar can never cover it). Rebuilt when its config, the bar height or the
+        // bar window itself changes.
+        _bars.TryGetValue(primary.DeviceName, out var primaryBar);
+        IntPtr owner = primaryBar is null ? IntPtr.Zero : new System.Windows.Interop.WindowInteropHelper(primaryBar).Handle;
+        string islandKey = System.Text.Json.JsonSerializer.Serialize(_config.Island) + primary.DeviceName + _config.Bar.Height + owner;
+        if (_island is not null && islandKey != _islandKey)
+        {
+            _island.Close();
+            _island = null;
+        }
+        _islandKey = islandKey;
+        if (_island is null && _config.Island.Enabled && owner != IntPtr.Zero)
+        {
+            _island = new IslandWindow(_config.Bar.Height, primary.DeviceName, owner);
+            _island.Place();
+        }
+        else _island?.Place();
     }
 
     private void Open(ShellWindow window)
@@ -145,6 +167,7 @@ public sealed class BarManager : IDisposable
             {
                 foreach (var w in All) w.SetHiddenForFullscreen(false);
                 _notch?.SetHiddenForFullscreen(false);
+                _island?.SetHiddenForFullscreen(false);
             }
         };
         window.Show();
@@ -162,6 +185,8 @@ public sealed class BarManager : IDisposable
             window.SetHiddenForFullscreen(Monitors.IsFullscreenAppOn(window.DeviceName));
         if (_notch is not null)
             _notch.SetHiddenForFullscreen(Monitors.IsFullscreenAppOn(_notch.DeviceName));
+        if (_island is not null)
+            _island.SetHiddenForFullscreen(Monitors.IsFullscreenAppOn(_island.DeviceName));
     }
 
     public void Dispose()
@@ -171,8 +196,10 @@ public sealed class BarManager : IDisposable
         _messages.Dispose();
         foreach (var window in All.ToList()) Close(window);
         _notch?.Close();
+        _island?.Close();
         _bars.Clear();
         _dock = null;
         _notch = null;
+        _island = null;
     }
 }

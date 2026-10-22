@@ -161,6 +161,13 @@ exist for CPU/memory, so the notch timer samples every `notch.refreshSeconds`). 
 - `--open notch` opens the first ring's popup for screenshots.
 - The notch can be dragged up/down; its position (0..1 of the work area) lives in `notch-position.txt` next to the exe, not in config.json.
 
+## The island
+
+`Bar/IslandWindow` (menu-bar pill, milestone 3) isn't an `IWidget`: one layered window owned by the primary bar
+window, sized for the open card, drawing only its black shape. New content goes in its `_open` panel (open card) or
+`_collapsed` (pill). Keep visual changes rare (layered = whole-window redraw), animate only on open/close.
+`--open island` opens and pins it for screenshots.
+
 ## Styles and icons
 
 - Buttons: `Shell.BarButton` (bar items), `Shell.MenuItem` (menu rows), `Shell.IconButton` (28 px square), `Shell.PushButton` / `Shell.PrimaryButton`, `Shell.DockTile` (in `Themes/Controls.xaml`).

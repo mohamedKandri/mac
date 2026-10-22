@@ -39,6 +39,7 @@ Saving it applies within about a second; a broken save never crashes the app.
     "autoHide": false,                                                // true = slide away; mouse at the bottom edge brings it back
     "pinned": ["File Explorer", "Microsoft Edge", "Settings"]         // Start > All apps names, app IDs, or .exe/.lnk paths
   },
+  "island": { "enabled": true },                                       // black pill in the menu bar: time, opens on hover/click
   "notch": {
     "enabled": true,
     "rings": ["cpu", "memory", "disk", "battery"],                     // top to bottom; each known ring at most once

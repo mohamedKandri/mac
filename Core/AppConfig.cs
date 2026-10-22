@@ -21,7 +21,16 @@ public sealed class AppConfig
     public BarConfig Bar { get; init; } = new();
     public DockConfig Dock { get; init; } = new();
     public NotchConfig Notch { get; init; } = new();
+    public IslandConfig Island { get; init; } = new();
     public ColorsConfig Colors { get; init; } = new();
+}
+
+// The black pill centered in the menu bar (like the iPhone's Dynamic Island): shows the time, and opens into a
+// card on hover or click.
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+public sealed class IslandConfig
+{
+    public bool Enabled { get; init; } = true;
 }
 
 // The black notch on the right edge of the primary monitor: system rings with a details popup on hover.
