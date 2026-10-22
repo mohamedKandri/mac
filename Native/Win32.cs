@@ -83,6 +83,15 @@ internal static class Win32
     public const long WS_EX_TOOLWINDOW = 0x00000080;  // not in Alt+Tab, not in the taskbar
     public const long WS_EX_NOACTIVATE = 0x08000000;  // clicking it doesn't take focus from the app you're using
     public const long WS_EX_TRANSPARENT = 0x00000020; // with a layered window: mouse input passes through to what's below
+    public const long WS_EX_LAYERED = 0x00080000;     // layered window: can be click-through and have a window-wide alpha
+
+    // Window-wide opacity for a layered window we made ourselves (LWA_ALPHA). With alpha 255 it only switches the
+    // window to "layered" for click-through; it's still drawn like a normal window (no UpdateLayeredWindow).
+    public const uint LWA_ALPHA = 0x2;
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool SetLayeredWindowAttributes(IntPtr hwnd, uint colorKey, byte alpha, uint flags);
 
     // Read / write a window's extended style bits (the 64-bit "Ptr" versions).
     [DllImport("user32.dll")]
@@ -202,6 +211,8 @@ internal static class Win32
     public const int DWMWA_USE_IMMERSIVE_DARK_MODE = 20;   // dark or light system-drawn parts (shadow, border)
     public const int DWMWA_WINDOW_CORNER_PREFERENCE = 33;  // Windows 11 corner rounding
     public const int DWMWCP_DONOTROUND = 1, DWMWCP_ROUND = 2, DWMWCP_ROUNDSMALL = 3;
+    public const int DWMWA_BORDER_COLOR = 34;              // Windows 11 window border color
+    public const int DWMWA_COLOR_NONE = unchecked((int)0xFFFFFFFE);   // ...no border at all
 
     // Sets one DWM attribute of a window. `value` is an int for every attribute we use.
     [DllImport("dwmapi.dll")]

@@ -51,10 +51,10 @@ public sealed class DockConfig
 
     // Slide away when not in use and come back when the mouse touches the bottom edge (macOS "Automatically hide
     // and show the Dock"). Maximized windows then get the full height. false = always visible, space reserved.
-    public bool AutoHide { get; init; } = true;
+    public bool AutoHide { get; init; } = false;
 
-    public double TileSize { get; init; } = 44;         // icon tiles, WPF units (macOS-like; the canvas used 52)
-    public double MagnifiedSize { get; init; } = 60;    // the tile under the mouse while hovering
+    public double TileSize { get; init; } = 40;         // icon tiles, WPF units (macOS-like; the canvas used 52)
+    public double MagnifiedSize { get; init; } = 54;    // the tile under the mouse while hovering
 
     // In order. Each is the app's name as shown in Start > All apps ("Microsoft Edge"), its app ID, or a full
     // path to an .exe / .lnk (environment variables like %LOCALAPPDATA% allowed).
@@ -146,14 +146,14 @@ public sealed class ThemeColors
     {
         Background = "#8C14161E", Panel = "#B81C1E28", Foreground = "#F4F5F7", Muted = "#A9AEBB",
         Hairline = "#24FFFFFF", Pressed = "#24FFFFFF", Accent = "#5B9DFF", Selection = "#2F6FD6",
-        Warning = "#FF453A", Dock = "#731E202A",
+        Warning = "#FF453A", Dock = "#401E202A",
     };
 
     public static ThemeColors DefaultLight() => new()
     {
         Background = "#8CFFFFFF", Panel = "#C7FFFFFF", Foreground = "#14161B", Muted = "#555B69",
         Hairline = "#1F000000", Pressed = "#14000000", Accent = "#5B9DFF", Selection = "#2F6FD6",
-        Warning = "#D70015", Dock = "#80FFFFFF",
+        Warning = "#D70015", Dock = "#4DFFFFFF",
     };
 
     public IEnumerable<(string Name, string Value)> All() =>

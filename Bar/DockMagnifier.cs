@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Interop;
 using System.Windows.Media;
@@ -30,7 +30,7 @@ internal sealed class DockMagnifier : Window
     {
         Headroom = headroom;
         WindowStyle = WindowStyle.None;
-        AllowsTransparency = true;      // layered window: per-pixel transparency, and the only kind that can be click-through
+        // Not AllowsTransparency: see WindowStyles.MakeFastClickThroughOverlay (transparency comes from DWM instead).
         Background = Brushes.Transparent;
         ResizeMode = ResizeMode.NoResize;
         ShowInTaskbar = false;
@@ -54,7 +54,7 @@ internal sealed class DockMagnifier : Window
         Panel.SetZIndex(_label, 1000);
         Content = _canvas;
 
-        SourceInitialized += (_, _) => WindowStyles.MakeClickThroughOverlay(new WindowInteropHelper(this).Handle);
+        SourceInitialized += (_, _) => WindowStyles.MakeFastClickThroughOverlay(this);
     }
 
     // Copies the dock's tiles (called when hovering starts, or when tiles change while hovering).

@@ -128,7 +128,7 @@ public partial class DockWindow : ShellWindow
     // ---------------- Magnification + app name (dock step 4) ----------------
 
     private const double LabelSpace = 34;        // room above a magnified tile for its name
-    private const double Smoothing = 0.3;        // per frame: how far tiles move towards their target size
+    private const double Smoothing = 0.55;       // per frame: how far tiles move towards their target size (0.3 felt laggy)
     private static readonly TimeSpan BounceTime = TimeSpan.FromMilliseconds(280);
 
     private DockMagnifier? _magnifier;
@@ -200,7 +200,7 @@ public partial class DockWindow : ShellWindow
     }
 
     // Mouse gone and tiles back to normal: show the real icons again and close the overlay. Closing (rather than
-    // hiding) frees its ~12 MB of layered-window pixels; re-creating it on the next hover takes a few ms.
+    // hiding) frees its pixel buffer (~12 MB back when it was a WPF layered window); re-creating it takes a few ms.
     private void StopLoop()
     {
         PauseLoop();

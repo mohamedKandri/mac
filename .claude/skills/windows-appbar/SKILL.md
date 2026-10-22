@@ -120,9 +120,12 @@ is off. Anything that can stop MacShell must leave a path to `Restore()`: use th
    ShellWindow does `MakeToolWindow`, `Backdrop.Prepare/Apply` and the `AppBar` in `SourceInitialized`.
 2. Call `Redock()` when the reserved thickness changes, `Reposition()` when only the window size changes.
 3. Glass limits: the blur covers the whole window rect and Windows only rounds corners at ~8 px. Anything that must
-   draw outside the glass shape needs its own transparent window, like `Bar/DockMagnifier`: `AllowsTransparency=True`
-   (layered) + `WindowStyles.MakeClickThroughOverlay`, placed with `WindowStyles.PlaceOnTop`. Close it when it's not
-   in use: a hidden layered window keeps its pixel buffer (~12 MB for the dock overlay).
+   draw outside the glass shape needs its own transparent window, like `Bar/DockMagnifier`. If it redraws often
+   (animation), use a normal window + `WindowStyles.MakeFastClickThroughOverlay` (DWM alpha + `WS_EX_LAYERED` with
+   `SetLayeredWindowAttributes(255)` for click-through), not `AllowsTransparency=True`: WPF's own layered windows
+   redraw and copy the whole window on every change in software rendering. Static overlays (notch, popups) may use
+   `AllowsTransparency` + `MakeClickThroughOverlay`. Place with `WindowStyles.PlaceOnTop`. Close overlays when not
+   in use: a hidden window keeps its pixel buffer (~12 MB for the dock overlay).
 4. Own it from `BarManager` (see how the dock is opened/closed in `Sync`) so hot-plug, crash release and fullscreen
    hiding come for free.
 5. Verify: owner runs `tools\check-appbar.ps1` (work area), quit restores the area, the fullscreen test, and
