@@ -200,7 +200,7 @@ public partial class DockWindow : ShellWindow
     }
 
     // Mouse gone and tiles back to normal: show the real icons again and close the overlay. Closing (rather than
-    // hiding) frees its pixel buffer (~12 MB back when it was a WPF layered window); re-creating it takes a few ms.
+    // hiding) frees its ~12 MB of layered-window pixels; re-creating it on the next hover takes a few ms.
     private void StopLoop()
     {
         PauseLoop();
