@@ -406,6 +406,58 @@ internal static class Win32
     [DllImport("kernel32.dll")]
     public static extern IntPtr GetCurrentProcess();
 
+    // ---------------- Keyboard (Win+1…9 for the dock) ----------------
+
+    // A low-level keyboard hook: Windows calls it for every key press, before the app in front gets it.
+    public delegate IntPtr LowLevelKeyboardProc(int code, IntPtr message, IntPtr data);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern IntPtr SetWindowsHookExW(int hookType, LowLevelKeyboardProc proc, IntPtr module, uint threadId);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool UnhookWindowsHookEx(IntPtr hook);
+
+    [DllImport("user32.dll")]
+    public static extern IntPtr CallNextHookEx(IntPtr hook, int code, IntPtr message, IntPtr data);
+
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode)]
+    public static extern IntPtr GetModuleHandleW(string? name);
+
+    // What the hook receives for each key event.
+    [StructLayout(LayoutKind.Sequential)]
+    public struct KBDLLHOOKSTRUCT
+    {
+        public uint vkCode, scanCode, flags, time;
+        public IntPtr dwExtraInfo;
+    }
+
+    // Bit 0x8000 set = the key is down right now.
+    [DllImport("user32.dll")]
+    public static extern short GetAsyncKeyState(int vk);
+
+    // Simulates key presses (used to send one harmless key, see WinNumberKeys).
+    public const uint INPUT_KEYBOARD = 1, KEYEVENTF_KEYUP = 0x0002;
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct KEYBDINPUT
+    {
+        public ushort wVk, wScan;
+        public uint dwFlags, time;
+        public IntPtr dwExtraInfo;
+    }
+
+    // INPUT is a union of mouse/keyboard/hardware input; 40 bytes on 64-bit (the mouse variant is the biggest).
+    [StructLayout(LayoutKind.Explicit, Size = 40)]
+    public struct INPUT
+    {
+        [FieldOffset(0)] public uint type;
+        [FieldOffset(8)] public KEYBDINPUT ki;
+    }
+
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern uint SendInput(uint count, INPUT[] inputs, int size);
+
     // ---------------- System load (notch rings) ----------------
 
     // Total time the CPUs spent idle / in the kernel (includes idle) / in user mode since boot, in 100 ns ticks.

@@ -26,6 +26,7 @@ public partial class DockWindow : ShellWindow
     private readonly Action<string, string> _notify;
     private readonly AppCommands _commands;
     private DockMenu? _menu;
+    private WinNumberKeys? _numberKeys;
     private readonly WindowTracker _windows = new();
     private bool _binFull;
     private List<AppCatalog.App> _catalog = [];
@@ -46,6 +47,7 @@ public partial class DockWindow : ShellWindow
         _config = config;
         _notify = notify;
         _commands = commands;
+        SetUpNumberKeys();
         ApplySizes();
         BuildTiles();
         _windows.Changed += UpdateRunning;
@@ -408,6 +410,7 @@ public partial class DockWindow : ShellWindow
         bool sizesChanged = config.Dock.TileSize != _config.Dock.TileSize || config.Dock.MagnifiedSize != _config.Dock.MagnifiedSize;
         bool autoHideChanged = config.Dock.AutoHide != _config.Dock.AutoHide;
         _config = config;
+        SetUpNumberKeys();
         if (sizesChanged) ApplySizes();
         bool tilesChanged = BuildTiles();
         if (sizesChanged || autoHideChanged) Redock();   // also takes or gives back the reserved strip
@@ -459,6 +462,27 @@ public partial class DockWindow : ShellWindow
         tile.Clicked += OnTileClicked;
         tile.RightClicked += OnTileRightClicked;
         return tile;
+    }
+
+    // ---------------- Win+1 … Win+9 (dock.numberShortcuts) ----------------
+
+    private void SetUpNumberKeys()
+    {
+        if (_config.Dock.NumberShortcuts == (_numberKeys is not null)) return;
+        _numberKeys?.Dispose();
+        _numberKeys = null;
+        if (!_config.Dock.NumberShortcuts) return;
+        _numberKeys = new WinNumberKeys();
+        _numberKeys.Pressed += OpenByNumber;
+    }
+
+    // Win+N = clicking the Nth app (pinned, then running); Shift+Win+N = a new window of it.
+    private void OpenByNumber(int index, bool newWindow)
+    {
+        var tiles = AppTiles.Children.OfType<DockAppTile>().Concat(RunningTiles.Children.OfType<DockAppTile>()).ToList();
+        if (index >= tiles.Count) return;
+        if (newWindow) AppCatalog.Launch(tiles[index].App);
+        else OnTileClicked(tiles[index]);
     }
 
     // For the `--open dock-menu` developer switch: the first app's right-click menu.
@@ -597,6 +621,7 @@ public partial class DockWindow : ShellWindow
         _trigger?.Close();
         _windows.Dispose();
         _menu?.SafeClose();
+        _numberKeys?.Dispose();
         base.OnClosed(e);
     }
 

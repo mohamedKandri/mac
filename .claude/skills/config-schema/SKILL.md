@@ -37,6 +37,7 @@ Saving it applies within about a second; a broken save never crashes the app.
     "enabled": true, "tileSize": 40, "magnifiedSize": 54,             // tileSize 32..96, magnifiedSize tileSize..128
     "hideTaskbar": true,                                              // hide the Windows taskbar while MacShell runs
     "autoHide": false,                                                // true = slide away; mouse at the bottom edge brings it back
+    "numberShortcuts": true,                                          // Win+1…9 open/switch to the Nth dock app
     "pinned": ["File Explorer", "Microsoft Edge", "Settings"]         // Start > All apps names, app IDs, or .exe/.lnk paths
   },
   "island": { "enabled": true },                                       // black pill in the menu bar: time, opens on hover/click

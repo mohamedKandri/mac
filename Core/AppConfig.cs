@@ -62,6 +62,9 @@ public sealed class DockConfig
     // and show the Dock"). Maximized windows then get the full height. false = always visible, space reserved.
     public bool AutoHide { get; init; } = false;
 
+    // Win+1 … Win+9 open or switch to the Nth dock app (Shift = new window), like the taskbar's shortcuts.
+    public bool NumberShortcuts { get; init; } = true;
+
     public double TileSize { get; init; } = 40;         // icon tiles, WPF units (macOS-like; the canvas used 52)
     public double MagnifiedSize { get; init; } = 54;    // the tile under the mouse while hovering
 
