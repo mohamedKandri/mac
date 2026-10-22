@@ -10,6 +10,8 @@
     <AssemblyName>MacShell</AssemblyName>
     <ApplicationIcon>Themes\MacShell.ico</ApplicationIcon>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <!-- Native/WinRt.cs calls WinRT objects through raw vtable function pointers (C# `unsafe`). -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
 
   <ItemGroup>
