@@ -9,7 +9,12 @@ namespace MacShell.Native;
 // changes. `Changed` is raised on the UI thread; `Current` is the latest state.
 internal sealed class MediaSessions : IDisposable
 {
-    public readonly record struct State(bool Active, string Title, string Artist, string App, bool Playing);
+    public readonly record struct State(bool Active, string Title, string Artist, string App, bool Playing)
+    {
+        // Nothing playing. Not `default`: a default struct has null strings, and the title is read before the
+        // async track lookup has answered (that crashed MacShell at start while something was paused).
+        public static readonly State Nothing = new(false, "", "", "", false);
+    }
 
     // IIDs and vtable slots from Include\10.0.26100.0\winrt\windows.media.control.h.
     private const string ManagerClass = "Windows.Media.Control.GlobalSystemMediaTransportControlsSessionManager";
@@ -35,7 +40,7 @@ internal sealed class MediaSessions : IDisposable
     private bool _refreshQueued, _disposed;
     private int _generation;   // ignores a slow properties lookup for a session that's gone meanwhile
 
-    public State Current { get; private set; }
+    public State Current { get; private set; } = State.Nothing;
 
     public event Action? Changed;
 
@@ -107,7 +112,7 @@ internal sealed class MediaSessions : IDisposable
         if (_disposed) return;
         if (_session == IntPtr.Zero)
         {
-            Publish(default);
+            Publish(State.Nothing);
             return;
         }
 
@@ -141,12 +146,15 @@ internal sealed class MediaSessions : IDisposable
     }
 
     // "Spotify.exe" -> "Spotify", "chrome" -> "Chrome",
-    // "Microsoft.ZuneMusic_8wekyb3d8bbwe!Microsoft.ZuneMusic" (a Store app ID) -> "ZuneMusic".
+    // "Microsoft.ZuneMusic_8wekyb3d8bbwe!Microsoft.ZuneMusic" (a Store app ID) -> "ZuneMusic",
+    // "Chrome.NW5ODL574P26URTNGYOEG35L6Q" (Chrome's per-profile ID) -> "Chrome": the last dotted part that isn't
+    // a long generated ID.
     private static string AppName(string appId)
     {
         string name = appId.Contains('!') ? appId[(appId.LastIndexOf('!') + 1)..] : appId;
         if (name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)) name = name[..^4];
-        if (name.Contains('.')) name = name[(name.LastIndexOf('.') + 1)..];
+        static bool GeneratedId(string part) => part.Length >= 16 && part.All(c => char.IsAsciiLetterUpper(c) || char.IsAsciiDigit(c));
+        name = name.Split('.').LastOrDefault(part => part.Length > 0 && !GeneratedId(part)) ?? name;
         return name.Length == 0 ? name : char.ToUpperInvariant(name[0]) + name[1..];
     }
 

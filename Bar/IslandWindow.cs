@@ -201,7 +201,7 @@ internal sealed class IslandWindow : Window
     private void UpdateMedia()
     {
         var m = _media.Current;
-        bool active = m.Active && m.Title.Length > 0;
+        bool active = m.Active && !string.IsNullOrEmpty(m.Title);
         _smallTime.Visibility = active ? Visibility.Collapsed : Visibility.Visible;
         _pillNowPlaying.Visibility = active ? Visibility.Visible : Visibility.Collapsed;
         _clockCard.Visibility = active ? Visibility.Collapsed : Visibility.Visible;
