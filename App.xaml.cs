@@ -1,4 +1,4 @@
-﻿using System.IO;
+using System.IO;
 using System.Windows;
 using MacShell.Bar;
 using MacShell.Core;
@@ -93,6 +93,9 @@ public partial class App : Application
         };
         dockCheck.Start();
 
+        // Keeps RAM low all day: idle pages go back to Windows after menus close and every 10 min (Core/MemoryKeeper).
+        var memory = new MemoryKeeper();   // lives on through its timers and event handler
+
         // Startup leaves a lot of one-off garbage (XAML parsing, config, fonts). Once everything is idle, collect it
         // once and give the memory back to Windows; after that the app barely allocates.
         // Measured: removes the random +13 MB that about one launch in three showed.
@@ -100,7 +103,17 @@ public partial class App : Application
         {
             System.Runtime.GCSettings.LargeObjectHeapCompactionMode = System.Runtime.GCLargeObjectHeapCompactionMode.CompactOnce;
             GC.Collect(GC.MaxGeneration, GCCollectionMode.Aggressive, blocking: true, compacting: true);
+            memory.TrimNow();   // and give the now-unused pages back to Windows
         }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+
+        // Developer switch: `MacShell.exe --soak 10` exercises every popup/overlay for 10 minutes and logs memory
+        // to soak.log (see SoakTest), to catch leaks without waiting a whole day.
+        int soak = Array.IndexOf(e.Args, "--soak");
+        if (soak >= 0)
+        {
+            double minutes = soak + 1 < e.Args.Length && double.TryParse(e.Args[soak + 1], System.Globalization.CultureInfo.InvariantCulture, out double m) ? m : 10;
+            Dispatcher.InvokeAsync(() => new SoakTest(bars, minutes), System.Windows.Threading.DispatcherPriority.ContextIdle);
+        }
 
         // Developer switch: `MacShell.exe --open power-menu` (or `calendar`) opens a popup at startup, so popups
         // can be checked (screenshots, load errors) without clicking. Runs after the bar has laid out.

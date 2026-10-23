@@ -16,6 +16,15 @@ public partial class DockWindow
     private DockWindowList? _list;
     private DockAppTile? _listTile, _hoverTile;
 
+    // For the `--soak` test: close the menu, the window list and the magnifier, as if the mouse left the dock.
+    internal void ResetForTest()
+    {
+        _menu?.SafeClose();
+        CloseWindowList();
+        _hovering = false;
+        StopLoop();
+    }
+
     // ---------------- Window list on hover ----------------
 
     private void SetUpWindowList()

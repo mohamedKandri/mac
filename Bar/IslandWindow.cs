@@ -196,6 +196,13 @@ internal sealed class IslandWindow : OverlayWindow
     private bool HasTrack => _media.Current.Active && !string.IsNullOrEmpty(_media.Current.Title);
     private double OpenCardHeight => HasTrack ? MediaHeight : OpenHeight;
 
+    // For the `--soak` test: unpin and close, as if clicked again.
+    internal void ResetForTest()
+    {
+        _pinned = false;
+        Collapse();
+    }
+
     private void Collapse()
     {
         if (!_isOpen || _pinned) return;

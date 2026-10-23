@@ -402,6 +402,15 @@ internal static class Win32
     [DllImport("kernel32.dll")]
     public static extern IntPtr GetCurrentProcess();
 
+    // With min = max = -1: removes as many pages as possible from the process's working set (see ProcessMemory).
+    [DllImport("kernel32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool SetProcessWorkingSetSize(IntPtr process, IntPtr minimumSize, IntPtr maximumSize);
+
+    // How many GDI (0) or USER (1) objects a process holds: brushes/bitmaps, windows/menus. For leak checks.
+    [DllImport("user32.dll")]
+    public static extern uint GetGuiResources(IntPtr process, uint kind);
+
     // ---------------- Keyboard (Win+1…9 for the dock) ----------------
 
     // A low-level keyboard hook: Windows calls it for every key press, before the app in front gets it.

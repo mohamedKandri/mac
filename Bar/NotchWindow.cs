@@ -326,6 +326,15 @@ internal sealed class NotchWindow : OverlayWindow
         _popup.PlaceLeftOf((int)bodyLeft.X, (int)center.Y, (Monitors.Find(DeviceName)?.Dpi ?? 96) / 96.0);
     }
 
+    // For the `--soak` test: open into the full rings / back to resting, as if hovered and left.
+    internal void ExpandForTest() => SetExpanded(true);
+
+    internal void ResetForTest()
+    {
+        ClosePopup();
+        SetExpanded(false);
+    }
+
     // For the `--open notch` developer switch: the first ring's popup, as if hovered.
     public void OpenFirstPopup()
     {
