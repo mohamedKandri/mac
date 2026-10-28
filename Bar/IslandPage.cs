@@ -22,6 +22,9 @@ internal abstract class IslandPage : IDisposable
 
     public abstract FrameworkElement View { get; }
 
+    // The open card's width on this page (most use the standard 340; Home is wider).
+    public virtual double Width => ContentWidth + 44;
+
     // The open card's height on this page.
     public virtual double Height => 178;
 

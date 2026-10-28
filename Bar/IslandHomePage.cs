@@ -21,7 +21,7 @@ namespace MacShell.Bar;
 // whole minutes, so it redraws once a minute.
 internal sealed class IslandHomePage : IslandPage
 {
-    private const double TileWidth = 92, TileHeight = 128, Gap = 10, Corner = 16;
+    private const double TileWidth = 132, TileHeight = 112, Gap = 10, Corner = 18, CardWidth = 460;
     private static readonly Color Base = Color.FromRgb(0x1C, 0x1C, 0x1F);
     private static readonly Color FocusGlow = Color.FromRgb(0x8E, 0x5B, 0xFF);
     private static readonly Color DoneGlow = Color.FromRgb(0x34, 0xC7, 0x59);
@@ -32,11 +32,12 @@ internal sealed class IslandHomePage : IslandPage
     private static readonly SolidColorBrush Green = Frozen.Brush(DoneGlow);
     private static readonly Geometry PlayIcon = Frozen.Geometry("M7,4 L20,12 L7,20 Z");
     private static readonly Geometry PauseIcon = Frozen.Geometry("M6,4 H10 V20 H6 Z M14,4 H18 V20 H14 Z");
+    private static readonly Geometry StopIcon = Frozen.Geometry("M6,6 H18 V18 H6 Z");
     private static readonly Geometry TimerIcon = Frozen.Geometry("M12,8 V12 L14.5,14.5 M5,13 A7,7 0 1 0 19,13 A7,7 0 1 0 5,13 M10,2 H14");
     private static readonly TimeSpan DefaultFocus = TimeSpan.FromMinutes(25);
     private static readonly TimeSpan DoneShownFor = TimeSpan.FromSeconds(8);
 
-    private readonly Grid _root = new() { Width = ContentWidth };
+    private readonly Grid _root = new() { Width = CardWidth - 44 };   // inside the card's 22 px side margins
     private readonly IslandWeatherPage _weather;
     private readonly Action _togglePlayPause;
 
@@ -44,22 +45,23 @@ internal sealed class IslandHomePage : IslandPage
     private sealed record GlowTile(Border Glow, Border Frame);
     private readonly GlowTile _music, _focus, _sky;
 
-    private readonly Border _musicArt = new() { Width = 34, Height = 34, CornerRadius = new CornerRadius(8) };
+    private readonly Border _musicArt = new() { Width = 38, Height = 38, CornerRadius = new CornerRadius(9) };
     private readonly TextBlock _musicTitle, _musicArtist, _musicIdle;
-    private readonly Path _musicPlayIcon = new() { Fill = Brushes.White, Data = PlayIcon };
+    private readonly Path _musicPlayIcon = new() { Fill = Brushes.Black, Data = PlayIcon };
     private readonly FrameworkElement _musicPlaying;
     private string _artKey = "";
     private Color _musicColor = GreyGlow;
 
     private readonly TextBlock _focusTime, _focusStatus;
-    private readonly Ellipse _focusRing = new() { Width = 22, Height = 22, StrokeThickness = 2.5, Stroke = Brushes.White, RenderTransformOrigin = new Point(0.5, 0.5), RenderTransform = new RotateTransform(-90) };
+    private readonly Path _focusGlyph = new() { Fill = Brushes.Black, Data = PlayIcon };
+    private readonly Ellipse _focusRing = new() { Width = 34, Height = 34, StrokeThickness = 2.5, Stroke = Brushes.White, RenderTransformOrigin = new Point(0.5, 0.5), RenderTransform = new RotateTransform(-90) };
     private readonly DispatcherTimer _focusTick = new() { Interval = TimeSpan.FromSeconds(1) };
     private readonly DispatcherTimer _doneTimer = new();
     private DateTime _focusEndsAt;
     private TimeSpan _focusLength = DefaultFocus;
     private bool _focusRunning, _focusDone, _shown;
 
-    private readonly TextBlock _skyTemp, _skyCity, _skyText;
+    private readonly TextBlock _skyTemp, _skyText;
     private readonly ContentControl _skyIcon = new() { HorizontalAlignment = HorizontalAlignment.Right };
 
     public IslandHomePage(IslandWeatherPage weather, Action togglePlayPause)
@@ -67,45 +69,41 @@ internal sealed class IslandHomePage : IslandPage
         _weather = weather;
         _togglePlayPause = togglePlayPause;
 
-        // Music: artwork + play/pause on top, title and artist at the bottom ("Nothing playing" when idle).
-        _musicTitle = Text("", 13, weight: FontWeights.SemiBold);
+        // Every tile, like the video: a small label top left, something round or square top right, and a big
+        // value with a muted line under it at the bottom.
+
+        // Music: artwork top right; title + artist at the bottom with a white play/pause button beside them.
+        _musicTitle = Text("", 15, weight: FontWeights.SemiBold);
         _musicArtist = Text("", 11, Muted);
         _musicIdle = Text("Nothing playing", 11, Muted);
-        _musicIdle.TextWrapping = TextWrapping.Wrap;
-        var playButton = new Button
+        var playButton = RoundButton(_musicPlayIcon, 26, "Play or pause", _togglePlayPause);
+        playButton.VerticalAlignment = VerticalAlignment.Bottom;
+        DockPanel.SetDock(playButton, Dock.Right);
+        _musicPlaying = new DockPanel
         {
-            Style = (Style)Application.Current.FindResource("Shell.DockTile"),
-            Width = 26, Height = 26,
-            HorizontalAlignment = HorizontalAlignment.Right,
-            Content = new Border
+            Visibility = Visibility.Collapsed,
+            Children = { playButton, new StackPanel { Margin = new Thickness(0, 0, 6, 0), Children = { _musicTitle, _musicArtist } } },
+        };
+        _music = MakeTile("Music", _musicArt, new Grid { Children = { _musicPlaying, _musicIdle } });
+
+        // Focus: a 25-minute timer. A white start / stop button top right, with a ring around it that empties as
+        // time passes. A click anywhere on the tile starts or stops it.
+        _focusTime = Text("25:00", 26, weight: FontWeights.SemiBold);
+        _focusStatus = Text("Ready to start", 11, Muted);
+        var focusButton = new Grid
+        {
+            Width = 34, Height = 34,
+            Children =
             {
-                Width = 26, Height = 26, CornerRadius = new CornerRadius(13), Background = Frozen.Brush(Color.FromArgb(0x33, 0xFF, 0xFF, 0xFF)),
-                Child = new Viewbox { Width = 11, Height = 11, Child = new Canvas { Width = 24, Height = 24, Children = { _musicPlayIcon } } },
+                _focusRing,
+                new Border
+                {
+                    Width = 24, Height = 24, CornerRadius = new CornerRadius(12), Background = Brushes.White,
+                    Child = new Viewbox { Width = 10, Height = 10, Child = new Canvas { Width = 24, Height = 24, Children = { _focusGlyph } } },
+                },
             },
         };
-        System.Windows.Automation.AutomationProperties.SetName(playButton, "Play or pause");
-        playButton.Click += (_, _) => _togglePlayPause();
-        _musicPlaying = new StackPanel
-        {
-            VerticalAlignment = VerticalAlignment.Bottom,
-            Children = { _musicTitle, _musicArtist },
-            Visibility = Visibility.Collapsed,
-        };
-        _musicIdle.VerticalAlignment = VerticalAlignment.Bottom;
-        var musicTop = new Grid { VerticalAlignment = VerticalAlignment.Top, Children = { _musicArt, playButton } };
-        _musicArt.HorizontalAlignment = HorizontalAlignment.Left;
-        _music = MakeTile("Music", new Grid { Children = { musicTop, _musicPlaying, _musicIdle } });
-
-        // Focus: a 25-minute timer. Click = start / stop; the ring empties as time passes.
-        _focusTime = Text("25:00", 22, weight: FontWeights.SemiBold);
-        _focusStatus = Text("Tap to start", 11, Muted);
-        _focusRing.HorizontalAlignment = HorizontalAlignment.Right;
-        _focusRing.VerticalAlignment = VerticalAlignment.Top;
-        var focusText = new StackPanel { VerticalAlignment = VerticalAlignment.Bottom, Children = { _focusTime, _focusStatus } };
-        var timerIcon = Icon(TimerIcon, 20);
-        timerIcon.HorizontalAlignment = HorizontalAlignment.Left;
-        timerIcon.VerticalAlignment = VerticalAlignment.Top;
-        _focus = MakeTile("Focus", new Grid { Children = { timerIcon, _focusRing, focusText } });
+        _focus = MakeTile("Focus", focusButton, new StackPanel { Children = { _focusTime, _focusStatus } });
         _focus.Frame.Cursor = System.Windows.Input.Cursors.Hand;
         _focus.Frame.MouseLeftButtonUp += (_, e) =>
         {
@@ -121,13 +119,10 @@ internal sealed class IslandHomePage : IslandPage
             RaisePillChanged();
         };
 
-        // Weather: big temperature, icon, city and conditions, from the weather page's forecast.
-        _skyTemp = Text("—", 22, weight: FontWeights.SemiBold);
-        _skyCity = Text("", 11, weight: FontWeights.Medium);
+        // Weather: the condition icon top right; the temperature with "City · Cloudy" under it.
+        _skyTemp = Text("—", 26, weight: FontWeights.SemiBold);
         _skyText = Text("", 11, Muted);
-        _skyIcon.VerticalAlignment = VerticalAlignment.Top;
-        var skyText = new StackPanel { VerticalAlignment = VerticalAlignment.Bottom, Children = { _skyTemp, _skyCity, _skyText } };
-        _sky = MakeTile("Weather", new Grid { Children = { _skyIcon, skyText } });
+        _sky = MakeTile("Weather", _skyIcon, new StackPanel { Children = { _skyTemp, _skyText } });
         _weather.PillChanged += ShowWeather;
 
         var row = new StackPanel { Orientation = Orientation.Horizontal, Children = { _music.Frame, _focus.Frame, _sky.Frame } };
@@ -141,7 +136,8 @@ internal sealed class IslandHomePage : IslandPage
     }
 
     public override FrameworkElement View { get; }
-    public override double Height => TileHeight + 8;
+    public override double Width => CardWidth;
+    public override double Height => TileHeight + 4;
 
     public override void Shown()
     {
@@ -250,12 +246,13 @@ internal sealed class IslandHomePage : IslandPage
         if (left < TimeSpan.Zero) left = TimeSpan.Zero;
         int seconds = (int)Math.Ceiling(left.TotalSeconds);
         _focusTime.Text = _focusDone ? "Done" : $"{seconds / 60:00}:{seconds % 60:00}";
-        _focusStatus.Text = _focusDone ? "Take a break" : _focusRunning ? $"{(int)Math.Ceiling(left.TotalMinutes)} min left" : "Tap to start";
+        _focusStatus.Text = _focusDone ? "Take a break" : _focusRunning ? $"{(int)Math.Ceiling(left.TotalMinutes)} min left" : "Ready to start";
         // Ring: the part still to go, as a dash in stroke-width units (like the notch rings).
         double circumference = Math.PI * (_focusRing.Width - _focusRing.StrokeThickness) / _focusRing.StrokeThickness;
         double fraction = _focusRunning ? left.TotalSeconds / _focusLength.TotalSeconds : _focusDone ? 0 : 1;
         _focusRing.StrokeDashArray = new DoubleCollection { circumference * fraction, 1000 };
-        _focusRing.Opacity = _focusRunning ? 1 : 0.35;
+        _focusRing.Opacity = _focusRunning ? 1 : 0;
+        _focusGlyph.Data = _focusRunning ? StopIcon : PlayIcon;
         SetGlow(_focus, _focusDone ? DoneGlow : _focusRunning ? FocusGlow : null);
     }
 
@@ -270,9 +267,8 @@ internal sealed class IslandHomePage : IslandPage
             return;
         }
         _skyTemp.Text = $"{f.Temperature}°";
-        _skyCity.Text = f.City;
-        _skyText.Text = WeatherService.Describe(f.Code).Text;
-        _skyIcon.Content = Icon(IslandWeatherPage.IconFor(f.Code), 22, IslandWeatherPage.ColorFor(f.Code));
+        _skyText.Text = $"{f.City} · {WeatherService.Describe(f.Code).Text}";
+        _skyIcon.Content = Icon(IslandWeatherPage.IconFor(f.Code), 26, IslandWeatherPage.ColorFor(f.Code));
         SetGlow(_sky, WeatherService.Describe(f.Code).Icon switch
         {
             "sun" or "partly" => SunGlow,
@@ -283,15 +279,16 @@ internal sealed class IslandHomePage : IslandPage
 
     // ---------------- Tiles and glow ----------------
 
-    private static GlowTile MakeTile(string label, FrameworkElement content)
+    // Label top left, `corner` top right, `bottom` at the bottom; a dark base under a glow layer.
+    private static GlowTile MakeTile(string label, FrameworkElement corner, FrameworkElement bottom)
     {
         var glow = new Border { CornerRadius = new CornerRadius(Corner), Opacity = 0 };
-        var body = new DockPanel { Margin = new Thickness(10, 9, 10, 10) };
-        var title = Text(label, 11, Muted, FontWeights.Medium);
-        title.Margin = new Thickness(0, 0, 0, 6);
-        DockPanel.SetDock(title, Dock.Top);
-        body.Children.Add(title);
-        body.Children.Add(content);
+        var title = Text(label, 12, Muted, FontWeights.Medium);
+        title.VerticalAlignment = VerticalAlignment.Top;
+        corner.HorizontalAlignment = HorizontalAlignment.Right;
+        corner.VerticalAlignment = VerticalAlignment.Top;
+        bottom.VerticalAlignment = VerticalAlignment.Bottom;
+        var body = new Grid { Margin = new Thickness(12, 10, 12, 11), Children = { title, corner, bottom } };
         var frame = new Border
         {
             Width = TileWidth, Height = TileHeight,
@@ -303,6 +300,24 @@ internal sealed class IslandHomePage : IslandPage
             Child = new Grid { Children = { glow, body } },
         };
         return new GlowTile(glow, frame);
+    }
+
+    // A white circle with a black glyph, like the video's tile buttons.
+    private static Button RoundButton(Path glyph, double size, string name, Action click)
+    {
+        var button = new Button
+        {
+            Style = (Style)Application.Current.FindResource("Shell.DockTile"),
+            Width = size, Height = size,
+            Content = new Border
+            {
+                Width = size, Height = size, CornerRadius = new CornerRadius(size / 2), Background = Brushes.White,
+                Child = new Viewbox { Width = size * 0.42, Height = size * 0.42, Child = new Canvas { Width = 24, Height = 24, Children = { glyph } } },
+            },
+        };
+        System.Windows.Automation.AutomationProperties.SetName(button, name);
+        button.Click += (_, _) => click();
+        return button;
     }
 
     // Lights a tile with `color` (a gradient rising from the bottom and a tinted rim), or turns it off (null).

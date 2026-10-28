@@ -345,7 +345,7 @@ internal sealed class IslandWindow : OverlayWindow
         if (pin) _pinned = true;
         if (_isOpen) return;
         _isOpen = true;
-        Animate(OpenWidth, OpenCardHeight, Radius, openOpacity: 1);
+        Animate(OpenCardWidth, OpenCardHeight, Radius, openOpacity: 1);
         UpdateProgress();
         SyncProgressTimer();
     }
@@ -353,6 +353,7 @@ internal sealed class IslandWindow : OverlayWindow
     private bool HasTrack => _media.Current.Active && !string.IsNullOrEmpty(_media.Current.Title);
     private int ShelfPage => FirstExtraPage + _pages.IndexOf(_shelf);
     private IslandPage? CurrentExtraPage => _page == HomePage ? _home : _page >= FirstExtraPage ? _pages[_page - FirstExtraPage] : null;
+    private double OpenCardWidth => CurrentExtraPage?.Width ?? OpenWidth;
     private double OpenCardHeight => CurrentExtraPage is IslandPage p ? p.Height + 26 : _page == CalendarPage ? CalendarHeight
         : _lyricsOpen ? LyricsHeight : HasTrack ? MediaHeight : OpenHeight;   // +26 = the card's top and bottom margins
 
@@ -394,7 +395,7 @@ internal sealed class IslandWindow : OverlayWindow
         CurrentExtraPage?.Shown();
         if (page == CalendarPage) BuildCalendar();
         ShowCards();
-        Animate(OpenWidth, OpenCardHeight, Radius, openOpacity: 1);
+        Animate(OpenCardWidth, OpenCardHeight, Radius, openOpacity: 1);
         _open.BeginAnimation(OpacityProperty, new DoubleAnimation(0.2, 1, TimeSpan.FromMilliseconds(180)));
     }
 
@@ -527,7 +528,7 @@ internal sealed class IslandWindow : OverlayWindow
         _lyricsOpen = false;
         _pinned = false;
         ShowCards();
-        if (_body.IsMouseOver) Animate(OpenWidth, OpenCardHeight, Radius, openOpacity: 1);
+        if (_body.IsMouseOver) Animate(OpenCardWidth, OpenCardHeight, Radius, openOpacity: 1);
         else Collapse();
         UpdateProgress();
     }
