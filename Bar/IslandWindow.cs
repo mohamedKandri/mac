@@ -24,9 +24,10 @@ namespace MacShell.Bar;
 internal sealed class IslandWindow : OverlayWindow
 {
     // Open card: 128 high for the clock, 178 with a track (artwork, progress bar, controls).
-    // Lyrics card (click while a track plays): 372 high, the lyrics in a 236 px viewport.
+    // Lyrics card (click while a track plays): wider, not taller, than the track card. Cover + controls on the left,
+    // title + four lines of lyrics on the right.
     private const double Flare = 10, CollapsedWidth = 168, OpenWidth = 340, OpenHeight = 128, MediaHeight = 178, Radius = 22;
-    private const double LyricsHeight = 372, LyricsViewport = 236, LyricsRadius = 28;
+    private const double LyricsWidth = 460, LyricsHeight = 178, LyricsCover = 112, LyricsViewport = 104;
     private static readonly SolidColorBrush LyricDim = Frozen.Brush(Color.FromArgb(0x66, 0xFF, 0xFF, 0xFF));
     private const double ContentWidth = OpenWidth - 44;   // inside the card's 22 px side margins
     private static readonly Duration Motion = TimeSpan.FromMilliseconds(220);
@@ -74,8 +75,9 @@ internal sealed class IslandWindow : OverlayWindow
     {
         DeviceName = deviceName;
         _collapsedHeight = barHeight;
-        Width = OpenWidth + 2 * Flare;
-        Height = LyricsHeight;  // room for the tallest card; the rest of the window is transparent (click-through)
+        // Room for the widest and the tallest card; the rest of the window is transparent (click-through).
+        Width = Math.Max(OpenWidth, LyricsWidth) + 2 * Flare;
+        Height = Math.Max(MediaHeight, LyricsHeight);
 
         // Collapsed content: the time, or (while something plays) a tiny artwork square, the title, three green bars.
         _smallTime = new TextBlock { FontSize = 12, FontWeight = FontWeights.SemiBold, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
@@ -134,21 +136,32 @@ internal sealed class IslandWindow : OverlayWindow
         };
         _mediaCard = new StackPanel { Visibility = Visibility.Collapsed, Children = { top, _progress, controls } };
 
-        // Lyrics card: small cover + title on top, the scrolling lyrics, controls.
-        _lyricsArt = new Border { Width = 44, Height = 44, CornerRadius = new CornerRadius(9), Background = ArtPlaceholder };
-        DockPanel.SetDock(_lyricsArt, Dock.Left);
-        _lyricsTitle = new TextBlock { FontSize = 14, FontWeight = FontWeights.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis };
-        _lyricsArtist = new TextBlock { FontSize = 12, Foreground = Muted, TextTrimming = TextTrimming.CharacterEllipsis, Margin = new Thickness(0, 2, 0, 0) };
-        var lyricsHeader = new DockPanel
+        // Lyrics card: the cover with small controls under it on the left; title, artist and the lyrics on the right.
+        _lyricsArt = new Border { Width = LyricsCover, Height = LyricsCover, CornerRadius = new CornerRadius(12), Background = ArtPlaceholder };
+        _lyricsPlayPauseIcon = new Path { Fill = Brushes.White, Data = PlayIcon };
+        var lyricsControls = new StackPanel
         {
-            Margin = new Thickness(0, 0, 0, 10),
-            Children = { _lyricsArt, new StackPanel { Margin = new Thickness(12, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center, Children = { _lyricsTitle, _lyricsArtist } } },
+            Orientation = Orientation.Horizontal,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            Margin = new Thickness(0, 6, 0, 0),
+            Children =
+            {
+                ControlButton(new Path { Fill = Brushes.White, Data = PreviousIcon }, 14, "Previous", () => _media.Previous(), 36, 28),
+                ControlButton(_lyricsPlayPauseIcon, 18, "Play or pause", () => _media.TogglePlayPause(), 36, 28),
+                ControlButton(new Path { Fill = Brushes.White, Data = NextIcon }, 14, "Next", () => _media.Next(), 36, 28),
+            },
         };
-        _lyricsStatus = new TextBlock { FontSize = 14, Foreground = Muted, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 8, 0, 0) };
+        var left = new StackPanel { Width = LyricsCover, Children = { _lyricsArt, lyricsControls } };
+        DockPanel.SetDock(left, Dock.Left);
+
+        _lyricsTitle = new TextBlock { FontSize = 14, FontWeight = FontWeights.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis };
+        _lyricsArtist = new TextBlock { FontSize = 12, Foreground = Muted, TextTrimming = TextTrimming.CharacterEllipsis, Margin = new Thickness(0, 1, 0, 0) };
+        _lyricsStatus = new TextBlock { FontSize = 13, Foreground = Muted, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 6, 0, 0) };
         _lyricLines.RenderTransform = _lyricScroll;
         var viewport = new Grid
         {
             Height = LyricsViewport,
+            Margin = new Thickness(0, 8, 0, 0),
             ClipToBounds = true,
             Background = Brushes.Transparent,   // the whole area takes the mouse wheel
             Children = { _lyricsStatus, _lyricLines },
@@ -159,23 +172,11 @@ internal sealed class IslandWindow : OverlayWindow
             _manualScrollUntil = DateTime.UtcNow.AddSeconds(4);
             double max = Math.Max(0, _lyricLines.ActualHeight - LyricsViewport / 2);
             _lyricScroll.BeginAnimation(TranslateTransform.YProperty, null);
-            _lyricScroll.Y = Math.Clamp(_lyricScroll.Y + e.Delta / 3.0, -max, 0);
+            _lyricScroll.Y = Math.Clamp(_lyricScroll.Y + e.Delta / 4.0, -max, 0);
             e.Handled = true;
         };
-        _lyricsPlayPauseIcon = new Path { Fill = Brushes.White, Data = PlayIcon };
-        var lyricsControls = new StackPanel
-        {
-            Orientation = Orientation.Horizontal,
-            HorizontalAlignment = HorizontalAlignment.Center,
-            Margin = new Thickness(0, 6, 0, 0),
-            Children =
-            {
-                ControlButton(new Path { Fill = Brushes.White, Data = PreviousIcon }, 18, "Previous", () => _media.Previous()),
-                ControlButton(_lyricsPlayPauseIcon, 22, "Play or pause", () => _media.TogglePlayPause()),
-                ControlButton(new Path { Fill = Brushes.White, Data = NextIcon }, 18, "Next", () => _media.Next()),
-            },
-        };
-        _lyricsCard = new StackPanel { Visibility = Visibility.Collapsed, Children = { lyricsHeader, viewport, lyricsControls } };
+        var right = new StackPanel { Margin = new Thickness(16, 0, 0, 0), Children = { _lyricsTitle, _lyricsArtist, viewport } };
+        _lyricsCard = new DockPanel { Visibility = Visibility.Collapsed, Children = { left, right } };
 
         _open = new Grid { Margin = new Thickness(22, 16, 22, 10), Opacity = 0, Children = { _clockCard, _mediaCard, _lyricsCard } };
 
@@ -277,7 +278,7 @@ internal sealed class IslandWindow : OverlayWindow
         _pinned = true;
         _isOpen = true;
         ShowCards();
-        Animate(OpenWidth, LyricsHeight, LyricsRadius, openOpacity: 1);
+        Animate(LyricsWidth, LyricsHeight, Radius, openOpacity: 1);
         LoadLyrics();
         UpdateProgress();
         SyncProgressTimer();
@@ -311,17 +312,17 @@ internal sealed class IslandWindow : OverlayWindow
             _lyricLines.Children.Add(new TextBlock
             {
                 Text = line.Text.Length > 0 ? line.Text : "♪",
-                FontSize = 16,
+                FontSize = 14,
                 FontWeight = FontWeights.SemiBold,
                 TextWrapping = TextWrapping.Wrap,
                 Foreground = lyrics.Synced ? LyricDim : Brushes.White,
-                Margin = new Thickness(0, 0, 0, 10),
+                Margin = new Thickness(0, 0, 0, 6),
             });
         }
         UpdateLyricLine();
     }
 
-    // Highlights the line being sung and scrolls it to a third of the way down. Only touches the UI when the
+    // Highlights the line being sung and scrolls it a quarter of the way down (one line of context above). Only touches the UI when the
     // line changes (every few seconds), since each change redraws the layered window.
     private void UpdateLyricLine()
     {
@@ -339,7 +340,7 @@ internal sealed class IslandWindow : OverlayWindow
         if (DateTime.UtcNow < _manualScrollUntil) return;
         _lyricLines.UpdateLayout();
         double top = current.TranslatePoint(new Point(0, 0), _lyricLines).Y;
-        double target = Math.Min(0, LyricsViewport / 3 - top);
+        double target = Math.Min(0, LyricsViewport / 4 - top);
         _lyricScroll.BeginAnimation(TranslateTransform.YProperty,
             new DoubleAnimation(target, TimeSpan.FromMilliseconds(300)) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } });
     }
@@ -401,6 +402,7 @@ internal sealed class IslandWindow : OverlayWindow
         {
             _lyricsOpen = false;      // the track ended: no lyrics to show
             _pinned = false;
+            if (_isOpen) Animate(OpenWidth, OpenHeight, Radius, openOpacity: 1);
         }
         if (_isOpen && Math.Abs(_body.ActualHeight - OpenCardHeight) > 0.5)
             _body.BeginAnimation(HeightProperty, new DoubleAnimation(OpenCardHeight, Motion) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } });
@@ -473,13 +475,13 @@ internal sealed class IslandWindow : OverlayWindow
         return bars;
     }
 
-    // A round, borderless media button (44 px target) holding a solid glyph scaled to `size`.
-    private static Button ControlButton(Path icon, double size, string name, Action click)
+    // A borderless media button (44×32 target by default) holding a solid glyph scaled to `size`.
+    private static Button ControlButton(Path icon, double size, string name, Action click, double width = 44, double height = 32)
     {
         var button = new Button
         {
             Style = (Style)Application.Current.FindResource("Shell.DockTile"),
-            Width = 44, Height = 32,
+            Width = width, Height = height,
             Content = new Border
             {
                 Background = Brushes.Transparent,   // the whole button area is clickable, not just the glyph

@@ -54,7 +54,7 @@ internal sealed class MediaSessions : IDisposable
 
     public State Current { get; private set; } = State.Nothing;
 
-    // The track's album art / video thumbnail, small (decoded at 96 px). Null if the app gives none.
+    // The track's album art / video thumbnail, small (decoded at 144 px). Null if the app gives none.
     public ImageSource? Artwork { get; private set; }
 
     public event Action? Changed;
@@ -206,7 +206,7 @@ internal sealed class MediaSessions : IDisposable
             var image = new BitmapImage();
             image.BeginInit();
             image.StreamSource = new MemoryStream(bytes);
-            image.DecodePixelWidth = 96;                   // shown at 72 DIP at most: decode small, not the full-size cover
+            image.DecodePixelWidth = 144;                  // shown at 112 DIP at most (140 px at 125%): small, not full size
             image.CacheOption = BitmapCacheOption.OnLoad;   // read now, so the stream can go
             image.EndInit();
             image.Freeze();

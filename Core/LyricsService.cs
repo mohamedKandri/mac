@@ -32,19 +32,24 @@ public sealed partial class LyricsService
         if (_cache.TryGetValue(key, out var cached)) return cached;
 
         var (cleanTitle, cleanArtist) = Clean(title, artist);
-        Lyrics result = Lyrics.None;
-        try
-        {
-            // 1. Exact: title + artist (+ album, + duration in whole seconds), the way LRCLIB recommends.
-            var query = $"track_name={Uri.EscapeDataString(cleanTitle)}&artist_name={Uri.EscapeDataString(cleanArtist)}";
-            if (album.Length > 0) query += $"&album_name={Uri.EscapeDataString(album)}";
-            if (duration > TimeSpan.Zero) query += $"&duration={(int)Math.Round(duration.TotalSeconds)}";
-            result = Parse(await GetJson($"https://lrclib.net/api/get?{query}"));
 
-            // 2. Fuzzy: a search, first hit with synced lyrics (else the first with any).
-            if (result.Lines.Count == 0 && !result.Instrumental)
+        // 1. Exact: title + artist (+ album, + duration in whole seconds), the way LRCLIB recommends.
+        var query = $"track_name={Uri.EscapeDataString(cleanTitle)}&artist_name={Uri.EscapeDataString(cleanArtist)}";
+        if (album.Length > 0) query += $"&album_name={Uri.EscapeDataString(album)}";
+        if (duration > TimeSpan.Zero) query += $"&duration={(int)Math.Round(duration.TotalSeconds)}";
+        var (exact, exactAnswered) = await TryGetJson($"https://lrclib.net/api/get?{query}");
+        Lyrics result;
+        using (exact) result = exact is null ? Lyrics.None : ParseElement(exact.RootElement);
+        bool answered = exactAnswered;
+
+        // 2. Fuzzy: a search, first hit with synced lyrics (else the first with any). Also when step 1 failed:
+        // LRCLIB's exact endpoint sometimes answers 503 or times out while search works (seen 2026-10-28).
+        if (result.Lines.Count == 0 && !result.Instrumental)
+        {
+            var (hits, searchAnswered) = await TryGetJson($"https://lrclib.net/api/search?q={Uri.EscapeDataString(cleanArtist + " " + cleanTitle)}");
+            answered = searchAnswered;
+            using (hits)
             {
-                using var hits = await GetJson($"https://lrclib.net/api/search?q={Uri.EscapeDataString(cleanArtist + " " + cleanTitle)}");
                 if (hits?.RootElement.ValueKind == JsonValueKind.Array)
                 {
                     var all = hits.RootElement.EnumerateArray().Take(10).ToList();
@@ -54,11 +59,14 @@ public sealed partial class LyricsService
                 }
             }
         }
-        catch (Exception) { result = Lyrics.None; }   // offline, blocked, timed out, bad JSON
 
-        _cache[key] = result;
-        _order.Enqueue(key);
-        if (_order.Count > CacheSize) _cache.Remove(_order.Dequeue());
+        // Cache lyrics, and "not in the database" — but not a network failure, so the next click tries again.
+        if (result.Lines.Count > 0 || result.Instrumental || answered)
+        {
+            _cache[key] = result;
+            _order.Enqueue(key);
+            if (_order.Count > CacheSize) _cache.Remove(_order.Dequeue());
+        }
         return result;
     }
 
@@ -70,16 +78,19 @@ public sealed partial class LyricsService
         return index;
     }
 
-    private static async Task<JsonDocument?> GetJson(string url)
+    // (document, answered): answered = LRCLIB really replied (found, or 404 "not in the database"); false for
+    // network errors, timeouts (6 s per request) and server errors. Never throws.
+    private static async Task<(JsonDocument? Doc, bool Answered)> TryGetJson(string url)
     {
-        using var response = await Http.Value.GetAsync(url);
-        if (!response.IsSuccessStatusCode) return null;   // 404 = not in the database
-        return JsonDocument.Parse(await response.Content.ReadAsStringAsync());
-    }
-
-    private static Lyrics Parse(JsonDocument? doc)
-    {
-        using (doc) return doc is null ? Lyrics.None : ParseElement(doc.RootElement);
+        try
+        {
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(6));
+            using var response = await Http.Value.GetAsync(url, timeout.Token);
+            if (response.StatusCode == System.Net.HttpStatusCode.NotFound) return (null, true);
+            if (!response.IsSuccessStatusCode) return (null, false);
+            return (JsonDocument.Parse(await response.Content.ReadAsStringAsync(timeout.Token)), true);
+        }
+        catch (Exception) { return (null, false); }   // offline, blocked, timed out, bad JSON
     }
 
     private static Lyrics ParseElement(JsonElement e)
@@ -134,7 +145,7 @@ public sealed partial class LyricsService
 
     private static HttpClient CreateClient()
     {
-        var client = new HttpClient { Timeout = TimeSpan.FromSeconds(8) };
+        var client = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };   // per-request limits are in TryGetJson
         client.DefaultRequestHeaders.UserAgent.ParseAdd("MacShell/1.0");   // LRCLIB asks clients to identify themselves
         return client;
     }
