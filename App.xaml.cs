@@ -129,7 +129,7 @@ public partial class App : Application
                 "dock-windows" => () => bars.Dock?.OpenFirstWindowList(),
                 "notch" => () => bars.Notch?.OpenFirstPopup(),
                 "island" => () => bars.Island?.Expand(pin: true),
-                "island-big" => () => Dispatcher.InvokeAsync(() => bars.Island?.OpenBigForTest(), System.Windows.Threading.DispatcherPriority.ApplicationIdle),
+                "island-lyrics" => () => Dispatcher.InvokeAsync(() => bars.Island?.OpenLyricsForTest(), System.Windows.Threading.DispatcherPriority.ApplicationIdle),
                 _ => null,
             };
             if (show is not null)

@@ -15,7 +15,7 @@ internal sealed class MediaSessions : IDisposable
     // Position/Duration: TimeSpan ticks. PositionAt: when Windows measured Position (UTC); while playing the real
     // position is Position + (now - PositionAt). Duration 0 = the app doesn't report a timeline (live streams...).
     public readonly record struct State(bool Active, string Title, string Artist, string App, bool Playing,
-        long Position = 0, long Duration = 0, DateTime PositionAt = default)
+        long Position = 0, long Duration = 0, DateTime PositionAt = default, string Album = "")
     {
         // Nothing playing. Not `default`: a default struct has null strings, and the title is read before the
         // async track lookup has answered (that crashed MacShell at start while something was paused).
@@ -40,7 +40,7 @@ internal sealed class MediaSessions : IDisposable
     private const int Session_TrySkipNextAsync = 16, Session_TrySkipPreviousAsync = 17, Session_TryTogglePlayPauseAsync = 20;
     private const int Session_AddPlaybackInfoChanged = 27, Session_RemovePlaybackInfoChanged = 28;
     private const int Session_AddMediaPropertiesChanged = 29, Session_RemoveMediaPropertiesChanged = 30;
-    private const int Properties_Title = 6, Properties_Artist = 9;
+    private const int Properties_Title = 6, Properties_Artist = 9, Properties_AlbumTitle = 10;
     private const int PlaybackInfo_Status = 7;
     private const int StatusPlaying = 4;   // GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing
 
@@ -54,7 +54,7 @@ internal sealed class MediaSessions : IDisposable
 
     public State Current { get; private set; } = State.Nothing;
 
-    // The track's album art / video thumbnail (decoded at 256 px, ~250 KB). Null if the app gives none.
+    // The track's album art / video thumbnail, small (decoded at 96 px). Null if the app gives none.
     public ImageSource? Artwork { get; private set; }
 
     public event Action? Changed;
@@ -151,11 +151,12 @@ internal sealed class MediaSessions : IDisposable
             }
             string title = WinRt.TakeString(WinRt.GetPointer(properties, Properties_Title));
             string artist = WinRt.TakeString(WinRt.GetPointer(properties, Properties_Artist));
+            string album = WinRt.TakeString(WinRt.GetPointer(properties, Properties_AlbumTitle));
             // Artwork only when the track changed: reading and decoding it is the expensive part.
             string key = app + "|" + title + "|" + artist;
             if (key != _artworkKey) LoadArtwork(key, WinRt.GetPointer(properties, Properties_Thumbnail), generation);
             WinRt.Release(properties);
-            Publish(Current with { Title = title, Artist = artist });
+            Publish(Current with { Title = title, Artist = artist, Album = album });
         });
     }
 
@@ -205,7 +206,7 @@ internal sealed class MediaSessions : IDisposable
             var image = new BitmapImage();
             image.BeginInit();
             image.StreamSource = new MemoryStream(bytes);
-            image.DecodePixelWidth = 256;                  // the island's big card shows it at 200 DIP (250 px at 125%)
+            image.DecodePixelWidth = 96;                   // shown at 72 DIP at most: decode small, not the full-size cover
             image.CacheOption = BitmapCacheOption.OnLoad;   // read now, so the stream can go
             image.EndInit();
             image.Freeze();
