@@ -18,7 +18,7 @@ namespace MacShell.Bar;
 // the mouse leaves. A click keeps it open until the next click; with a track playing, a click opens the lyrics
 // card instead (synced lyrics from LRCLIB via Core/LyricsService, following the song), and the next click closes it.
 // Scrolling the open island flips pages, like swiping on a phone: now playing / clock, calendar, then the
-// IslandPage pages: weather, file shelf, quick toggles, network. Closing always returns to the first page.
+// Home (glowing tiles: music, focus timer, weather), then the IslandPage pages: weather, file shelf, quick toggles, network. Closing always returns to the first page.
 //
 // One layered window (AllowsTransparency) sized for the OPEN card; only the black shape is drawn, and fully
 // transparent pixels let clicks through to the bar below. It is owned by the menu bar window, so it always stays
@@ -31,7 +31,7 @@ internal sealed class IslandWindow : OverlayWindow
     private const double Flare = 10, CollapsedWidth = 168, OpenWidth = 340, OpenHeight = 128, MediaHeight = 178, Radius = 22;
     private const double LyricsWidth = 460, LyricsHeight = 178, LyricsCover = 112, LyricsViewport = 104;
     // Pages (mouse wheel while open). The calendar page fits six week rows.
-    private const int CalendarPage = 1, FirstExtraPage = 2;
+    private const int HomePage = 1, CalendarPage = 2, FirstExtraPage = 3;
     private const double CalendarHeight = 214, DayCell = 24;
     private static readonly SolidColorBrush DotOff = Frozen.Brush(Color.FromArgb(0x59, 0xFF, 0xFF, 0xFF));
     private static readonly SolidColorBrush LyricDim = Frozen.Brush(Color.FromArgb(0x66, 0xFF, 0xFF, 0xFF));
@@ -75,10 +75,11 @@ internal sealed class IslandWindow : OverlayWindow
     private readonly TextBlock _calendarTitle, _calendarToday;
     private readonly System.Windows.Controls.Primitives.UniformGrid _calendarDays = new() { Columns = 7 };
     private readonly StackPanel _pageDots = new() { HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, -14, 0) };
-    private int _page;                 // 0 = now playing / clock, 1 = calendar, 2+ = _pages[_page - 2]
+    private int _page;                 // 0 = now playing / clock, 1 = home, 2 = calendar, 3+ = _pages[_page - 3]
     private readonly List<IslandPage> _pages = [];
     private readonly IslandShelfPage _shelf;
     private readonly IslandWeatherPage _weather;
+    private readonly IslandHomePage _home;
     private readonly StackPanel _pillInfo = new() { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center, Visibility = Visibility.Collapsed };
     private int PageCount => FirstExtraPage + _pages.Count;
     private double _wheel;             // wheel movement not yet turned into a page flip (touchpads send small steps)
@@ -221,6 +222,8 @@ internal sealed class IslandWindow : OverlayWindow
         _weather = new IslandWeatherPage(config.WeatherCity);
         _shelf = new IslandShelfPage();
         _pages.AddRange([_weather, _shelf, new IslandTogglesPage(), new IslandNetworkPage()]);
+        _home = new IslandHomePage(_weather, () => _media.TogglePlayPause());
+        _home.PillChanged += UpdatePill;
         _shelf.Dragging += dragging =>
         {
             // Dragging a file out: stay open meanwhile, then close as usual if the mouse has left.
@@ -232,7 +235,7 @@ internal sealed class IslandWindow : OverlayWindow
             _pageDots.Children.Add(new Border { Width = 4, Height = 4, CornerRadius = new CornerRadius(2), Margin = new Thickness(0, 3, 0, 3), Background = DotOff });
 
         _open = new Grid { Margin = new Thickness(22, 16, 22, 10), Opacity = 0, Children = { _clockCard, _mediaCard, _lyricsCard, _calendarCard, _pageDots } };
-        foreach (var page in _pages)
+        foreach (var page in _pages.Prepend(_home))
         {
             page.View.Visibility = Visibility.Collapsed;
             page.View.HorizontalAlignment = HorizontalAlignment.Left;
@@ -349,7 +352,7 @@ internal sealed class IslandWindow : OverlayWindow
 
     private bool HasTrack => _media.Current.Active && !string.IsNullOrEmpty(_media.Current.Title);
     private int ShelfPage => FirstExtraPage + _pages.IndexOf(_shelf);
-    private IslandPage? CurrentExtraPage => _page >= FirstExtraPage ? _pages[_page - FirstExtraPage] : null;
+    private IslandPage? CurrentExtraPage => _page == HomePage ? _home : _page >= FirstExtraPage ? _pages[_page - FirstExtraPage] : null;
     private double OpenCardHeight => CurrentExtraPage is IslandPage p ? p.Height + 26 : _page == CalendarPage ? CalendarHeight
         : _lyricsOpen ? LyricsHeight : HasTrack ? MediaHeight : OpenHeight;   // +26 = the card's top and bottom margins
 
@@ -370,11 +373,18 @@ internal sealed class IslandWindow : OverlayWindow
     }
 
     // For the `--open island-calendar` / `island-weather` / ... developer switches: open, pinned, on that page
-    // (1 = calendar, 2 = weather, 3 = shelf, 4 = toggles, 5 = network).
+    // (1 = home, 2 = calendar, 3 = weather, 4 = shelf, 5 = toggles, 6 = network).
     internal void OpenPageForTest(int page)
     {
         Expand(pin: true);
         SetPage(Math.Clamp(page, 0, PageCount - 1));
+    }
+
+    // For the `--open island-focus` developer switch: Home page with a 5-second focus timer running.
+    internal void StartFocusForTest()
+    {
+        OpenPageForTest(HomePage);
+        _home.StartFocusForTest();
     }
 
     private void SetPage(int page)
@@ -531,6 +541,7 @@ internal sealed class IslandWindow : OverlayWindow
         _clockCard.Visibility = first && !active ? Visibility.Visible : Visibility.Collapsed;
         _mediaCard.Visibility = first && active && !_lyricsOpen ? Visibility.Visible : Visibility.Collapsed;
         _lyricsCard.Visibility = first && active && _lyricsOpen ? Visibility.Visible : Visibility.Collapsed;
+        _home.View.Visibility = _page == HomePage ? Visibility.Visible : Visibility.Collapsed;
         for (int i = 0; i < _pages.Count; i++)
             _pages[i].View.Visibility = _page == FirstExtraPage + i ? Visibility.Visible : Visibility.Collapsed;
         _pageDots.Visibility = _lyricsOpen ? Visibility.Collapsed : Visibility.Visible;
@@ -584,6 +595,7 @@ internal sealed class IslandWindow : OverlayWindow
         if (_isOpen && Math.Abs(_body.ActualHeight - OpenCardHeight) > 0.5)
             _body.BeginAnimation(HeightProperty, new DoubleAnimation(OpenCardHeight, Motion) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } });
         _pillNowPlaying.Visibility = active ? Visibility.Visible : Visibility.Collapsed;
+        _home.SetMedia(m, _media.Artwork);
         UpdatePill();
         ShowCards();
         if (!active) return;
@@ -699,7 +711,7 @@ internal sealed class IslandWindow : OverlayWindow
         else Place();
     }
 
-    // The closed pill: what's playing, else files waiting on the shelf, else the weather, else the time.
+    // The closed pill: what's playing, else the focus timer, else files waiting on the shelf, else the weather, else the time.
     private void UpdatePill()
     {
         if (HasTrack)
@@ -707,7 +719,7 @@ internal sealed class IslandWindow : OverlayWindow
             _smallTime.Visibility = _pillInfo.Visibility = Visibility.Collapsed;
             return;
         }
-        var info = _shelf.Pill ?? _weather.Pill;
+        var info = _home.Pill ?? _shelf.Pill ?? _weather.Pill;
         _smallTime.Visibility = info is null ? Visibility.Visible : Visibility.Collapsed;
         _pillInfo.Visibility = info is null ? Visibility.Collapsed : Visibility.Visible;
         if (info is null) return;
@@ -727,6 +739,7 @@ internal sealed class IslandWindow : OverlayWindow
     protected override void OnClosed(EventArgs e)
     {
         foreach (var page in _pages) page.Dispose();
+        _home.Dispose();
         _clock.Stop();
         _closeTimer.Stop();
         _progressTimer.Stop();

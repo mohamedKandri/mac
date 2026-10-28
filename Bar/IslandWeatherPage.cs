@@ -77,7 +77,12 @@ internal sealed class IslandWeatherPage : IslandPage
 
     public override FrameworkElement View { get; }
 
-    public override void Shown() => Refresh();   // the service answers from its cache unless it's 30 min old
+    public override void Shown() => Refresh();
+
+    // The last forecast (for the Home page's weather tile), with the icon and color used here.
+    public WeatherService.Forecast? Latest => _weather.Latest;
+    public static Geometry IconFor(int code) => Icons[WeatherService.Describe(code).Icon];
+    public static Brush ColorFor(int code) => IconColor(code);   // the service answers from its cache unless it's 30 min old
 
     public override PillInfo? Pill => _weather.Latest is WeatherService.Forecast f
         ? new PillInfo(Icons[WeatherService.Describe(f.Code).Icon], IconColor(f.Code), $"{f.Temperature}°  {f.City}")
