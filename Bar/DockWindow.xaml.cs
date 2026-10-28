@@ -122,6 +122,8 @@ public partial class DockWindow : ShellWindow
     protected override AppBarEdge Edge => AppBarEdge.Bottom;
     protected override bool RoundedCorners => IsGlass;
     protected override bool Glass => IsGlass;
+    // A thin light rim around the glass, like macOS's dock (Windows' default border is a dark gray).
+    protected override System.Windows.Media.Color? BorderColor => IsGlass ? System.Windows.Media.Color.FromRgb(0xC9, 0xCE, 0xD8) : null;
     protected override string TintColor => IsGlass ? Theme.Palette.DockGlass : Theme.Palette.Dock;
 
     private double PanelHeight => PaddingTop + _config.Dock.TileSize + DotRow + PaddingBottom;

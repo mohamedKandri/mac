@@ -44,7 +44,7 @@ public abstract class ShellWindow : Window
         // appears, so it never flashes in the wrong place or as a black box.
         SourceInitialized += (_, _) =>
         {
-            Backdrop.Prepare(this, RoundedCorners, systemBorder: Glass);
+            Backdrop.Prepare(this, RoundedCorners, systemBorder: Glass, BorderColor);
             ApplyBackdrop();
             _appBar = new AppBar(this, DeviceName, Edge, PlaceInStrip);
             _appBar.FullscreenNotified += opening => FullscreenNotified?.Invoke(opening);
@@ -63,6 +63,9 @@ public abstract class ShellWindow : Window
     // False = no blur and no system border: the window stays see-through (DWM honors WPF's alpha) and draws its
     // own opaque shape, like the black dock with its edge flares.
     protected virtual bool Glass => true;
+
+    // The 1 px border Windows draws around glass windows; null = Windows' own color.
+    protected virtual Color? BorderColor => null;
 
     // The glass tint (a palette color, e.g. Theme.Palette.Background).
     protected abstract string TintColor { get; }

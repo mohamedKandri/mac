@@ -13,7 +13,8 @@ internal static class Backdrop
 {
     // Call once from SourceInitialized (the native window must exist).
     // `systemBorder` false = no Windows 11 1 px border: for windows that draw their own shape (the black dock).
-    public static void Prepare(Window window, bool roundedCorners, bool systemBorder = true)
+    // `borderColor` = that border in our own color instead of Windows' gray (the glass dock's light rim).
+    public static void Prepare(Window window, bool roundedCorners, bool systemBorder = true, Color? borderColor = null)
     {
         IntPtr hwnd = new WindowInteropHelper(window).Handle;
 
@@ -27,6 +28,11 @@ internal static class Backdrop
         int corners = roundedCorners ? Win32.DWMWCP_ROUND : Win32.DWMWCP_DONOTROUND;
         Win32.DwmSetWindowAttribute(hwnd, Win32.DWMWA_WINDOW_CORNER_PREFERENCE, ref corners, sizeof(int));
 
+        if (systemBorder && borderColor is Color c)
+        {
+            int colorRef = c.R | (c.G << 8) | (c.B << 16);   // COLORREF = 0x00BBGGRR
+            Win32.DwmSetWindowAttribute(hwnd, Win32.DWMWA_BORDER_COLOR, ref colorRef, sizeof(int));
+        }
         if (!systemBorder)
         {
             int none = Win32.DWMWA_COLOR_NONE;

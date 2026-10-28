@@ -50,9 +50,9 @@ Saving it applies within about a second; a broken save never crashes the app.
   },
   "colors": {
     "dark":  { "background": "#8C14161E", "panel": "#B81C1E28", "foreground": "#F4F5F7", "muted": "#A9AEBB",
-               "hairline": "#24FFFFFF", "pressed": "#24FFFFFF", "accent": "#5B9DFF", "selection": "#2F6FD6", "warning": "#FF453A", "dock": "#FF000000", "dockGlass": "#401E202A" },
+               "hairline": "#24FFFFFF", "pressed": "#24FFFFFF", "accent": "#5B9DFF", "selection": "#2F6FD6", "warning": "#FF453A", "dock": "#FF000000", "dockGlass": "#33FFFFFF" },
     "light": { "background": "#8CFFFFFF", "panel": "#C7FFFFFF", "foreground": "#14161B", "muted": "#555B69",
-               "hairline": "#1F000000", "pressed": "#14000000", "accent": "#5B9DFF", "selection": "#2F6FD6", "warning": "#D70015", "dock": "#FF000000", "dockGlass": "#4DFFFFFF" }
+               "hairline": "#1F000000", "pressed": "#14000000", "accent": "#5B9DFF", "selection": "#2F6FD6", "warning": "#D70015", "dock": "#FF000000", "dockGlass": "#40FFFFFF" }
   }
 }
 ```

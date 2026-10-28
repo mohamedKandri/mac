@@ -163,20 +163,20 @@ public sealed class ThemeColors
     public string Selection { get; set; } = "";   // highlighted menu item, today in the calendar
     public string Warning { get; set; } = "";     // low battery
     public string Dock { get; set; } = "";        // the dock's solid shape in dock.style "black"
-    public string DockGlass { get; set; } = "";   // the glass tint in dock.style "glass" (frosted, so semi-transparent)
+    public string DockGlass { get; set; } = "";   // the glass tint in dock.style "glass": a faint white, like macOS's dock
 
     public static ThemeColors DefaultDark() => new()
     {
         Background = "#8C14161E", Panel = "#B81C1E28", Foreground = "#F4F5F7", Muted = "#A9AEBB",
         Hairline = "#24FFFFFF", Pressed = "#24FFFFFF", Accent = "#5B9DFF", Selection = "#2F6FD6",
-        Warning = "#FF453A", Dock = "#FF000000", DockGlass = "#401E202A",
+        Warning = "#FF453A", Dock = "#FF000000", DockGlass = "#33FFFFFF",
     };
 
     public static ThemeColors DefaultLight() => new()
     {
         Background = "#8CFFFFFF", Panel = "#C7FFFFFF", Foreground = "#14161B", Muted = "#555B69",
         Hairline = "#1F000000", Pressed = "#14000000", Accent = "#5B9DFF", Selection = "#2F6FD6",
-        Warning = "#D70015", Dock = "#FF000000", DockGlass = "#4DFFFFFF",
+        Warning = "#D70015", Dock = "#FF000000", DockGlass = "#40FFFFFF",
     };
 
     public IEnumerable<(string Name, string Value)> All() =>
