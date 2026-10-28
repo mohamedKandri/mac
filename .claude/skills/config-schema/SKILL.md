@@ -41,7 +41,7 @@ Saving it applies within about a second; a broken save never crashes the app.
     "numberShortcuts": true,                                          // Win+1…9 open/switch to the Nth dock app
     "pinned": ["File Explorer", "Microsoft Edge", "Settings"]         // Start > All apps names, app IDs, or .exe/.lnk paths
   },
-  "island": { "enabled": true },                                       // black pill in the menu bar: time, opens on hover/click
+  "island": { "enabled": true, "weatherCity": "Casablanca" },          // pill in the menu bar; weatherCity "" = no weather
   "notch": {
     "enabled": true,
     "rings": ["cpu", "memory", "disk", "battery"],                     // top to bottom; each known ring at most once

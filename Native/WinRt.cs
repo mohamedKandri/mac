@@ -74,6 +74,29 @@ internal static unsafe class WinRt
         return hr == S_OK ? result : IntPtr.Zero;
     }
 
+    // A method taking one int / enum argument and returning an object (e.g. SetStateAsync(state) -> async operation).
+    public static IntPtr CallWithInt(IntPtr obj, int slot, int argument)
+    {
+        IntPtr result = IntPtr.Zero;
+        int hr = ((delegate* unmanaged[Stdcall]<IntPtr, int, IntPtr*, int>)Slot(obj, slot))(obj, argument, &result);
+        return hr == S_OK ? result : IntPtr.Zero;
+    }
+
+    // IVectorView<T>: Size (slot 7) and GetAt(index) (slot 6). Returns owned objects.
+    public static List<IntPtr> VectorItems(IntPtr vector)
+    {
+        var items = new List<IntPtr>();
+        if (vector == IntPtr.Zero) return items;
+        uint size = (uint)GetInt(vector, 7, 0);
+        for (uint i = 0; i < size; i++)
+        {
+            IntPtr item = IntPtr.Zero;
+            if (((delegate* unmanaged[Stdcall]<IntPtr, uint, IntPtr*, int>)Slot(vector, 6))(vector, i, &item) == S_OK && item != IntPtr.Zero)
+                items.Add(item);
+        }
+        return items;
+    }
+
     // A method with no arguments that returns an int or enum.
     public static int GetInt(IntPtr obj, int slot, int fallback)
     {

@@ -31,6 +31,9 @@ public sealed class AppConfig
 public sealed class IslandConfig
 {
     public bool Enabled { get; init; } = true;
+
+    // The weather page's city (Open-Meteo looks it up by name). "" = no weather page data.
+    public string WeatherCity { get; init; } = "Casablanca";
 }
 
 // The black notch on the right edge of the primary monitor: system rings with a details popup on hover.

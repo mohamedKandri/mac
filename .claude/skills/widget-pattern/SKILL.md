@@ -175,6 +175,10 @@ exist for CPU/memory, so the notch timer samples every `notch.refreshSeconds`). 
 window, sized for the open card, drawing only its black shape. New content goes in its `_open` panel (open card) or
 `_collapsed` (pill). Keep visual changes rare (layered = whole-window redraw), animate only on open/close.
 `--open island` opens and pins it for screenshots.
+Scroll pages: a new page = a class deriving from `Bar/IslandPage` (View at `ContentWidth`, `Height`, start work in
+`Shown`, stop it in `Hidden`, optional `Pill`), added to `_pages` in the IslandWindow constructor in scroll order,
+plus an `--open island-…` switch (`OpenPageForTest`). Network access belongs in a `Core/*Service` with a lazy
+`HttpClient` that never throws; Windows APIs in `Native/`.
 
 ## Styles and icons
 

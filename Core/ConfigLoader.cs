@@ -56,7 +56,7 @@ public static class ConfigLoader
     {
         // `null` in the file ("font": null) bypasses the defaults, so reject it explicitly.
         if (c.Font is null || c.Bar is null || c.Dock is null || c.Colors is null || c.Bar.Left is null || c.Bar.Right is null || c.Dock.Pinned is null
-            || c.Notch is null || c.Notch.Rings is null || c.Island is null)
+            || c.Notch is null || c.Notch.Rings is null || c.Island is null || c.Island.WeatherCity is null)
             return "A section is set to null. Remove the key instead to use its default.";
 
         if (string.IsNullOrWhiteSpace(c.Font.Family)) return "font.family can't be empty.";

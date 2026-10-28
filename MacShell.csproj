@@ -21,6 +21,11 @@
     <Resource Include="Themes\Fonts\*.ttf" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- WMI, for the island's brightness slider (Native/Brightness): the laptop panel's brightness has no Win32 API. -->
+    <PackageReference Include="System.Management" Version="8.0.0" />
+  </ItemGroup>
+
   <!-- Publish: one self-contained MacShell.exe for 64-bit Windows, no .NET install needed. -->
   <PropertyGroup>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>

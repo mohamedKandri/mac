@@ -152,7 +152,7 @@ public sealed class BarManager : IDisposable
         _islandKey = islandKey;
         if (_island is null && _config.Island.Enabled && owner != IntPtr.Zero)
         {
-            _island = new IslandWindow(_config.Bar.Height, primary.DeviceName, owner);
+            _island = new IslandWindow(_config.Bar.Height, _config.Island, primary.DeviceName, owner);
             _island.Place();
         }
         else _island?.Place();

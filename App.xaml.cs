@@ -129,6 +129,11 @@ public partial class App : Application
                 "dock-windows" => () => bars.Dock?.OpenFirstWindowList(),
                 "notch" => () => bars.Notch?.OpenFirstPopup(),
                 "island" => () => bars.Island?.Expand(pin: true),
+                "island-calendar" => () => bars.Island?.OpenPageForTest(1),
+                "island-weather" => () => bars.Island?.OpenPageForTest(2),
+                "island-shelf" => () => bars.Island?.OpenPageForTest(3),
+                "island-toggles" => () => bars.Island?.OpenPageForTest(4),
+                "island-network" => () => bars.Island?.OpenPageForTest(5),
                 "island-lyrics" => () => Dispatcher.InvokeAsync(() => bars.Island?.OpenLyricsForTest(), System.Windows.Threading.DispatcherPriority.ApplicationIdle),
                 _ => null,
             };
