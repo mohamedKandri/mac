@@ -66,6 +66,8 @@ public static class ConfigLoader
         if (c.Dock.MagnifiedSize < c.Dock.TileSize || c.Dock.MagnifiedSize > 128)
             return $"dock.magnifiedSize must be between tileSize ({c.Dock.TileSize}) and 128 (got {c.Dock.MagnifiedSize}).";
         if (c.Dock.Pinned.Any(string.IsNullOrWhiteSpace)) return "dock.pinned contains an empty entry.";
+        if (!DockConfig.KnownStyles.Contains(c.Dock.Style))
+            return $"dock.style must be one of: {string.Join(", ", DockConfig.KnownStyles)} (got '{c.Dock.Style}').";
         foreach (var ring in c.Notch.Rings)
         {
             if (!NotchConfig.KnownRings.Contains(ring))

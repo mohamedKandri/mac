@@ -18,8 +18,17 @@ public partial class DockWindow : ShellWindow
     // macOS proportions (owner's reference screenshot): padding 6 top / 8 sides / 3 bottom, a 3 px running dot 2 px
     // under the tile, 6 between tiles. Since the black notch style (2026-10-22) it sits on the edge (no gap), with
     // the notch's 16 px flares on both sides and 18 px top corners.
-    private const double EdgeGap = 0, PaddingTop = 6, PaddingSide = 8, PaddingBottom = 3, DotRow = 2 + 3;
+    private const double PaddingTop = 6, PaddingSide = 8, PaddingBottom = 3, DotRow = 2 + 3;
     private const double Flare = 16, CornerRadius = 18;
+
+    // dock.style (fixed for this window's life: BarManager builds a new dock when it changes, because the blur
+    // and the corner style are set when the native window is created).
+    public string DockStyle { get; }
+    private bool IsGlass => DockStyle == "glass";
+
+    // Glass floats 6 px above the edge (like macOS); the black shape sits on the edge with its flares.
+    private double EdgeGap => IsGlass ? 6 : 0;
+    private double FlareInset => IsGlass ? 0 : Flare;
 
     private const double TileGap = 6;
 
@@ -37,12 +46,22 @@ public partial class DockWindow : ShellWindow
         : base(theme, deviceName)
     {
         InitializeComponent();
-        // Always white on black, whatever the Windows theme (like the notch): these override the theme's colors
-        // for everything inside the dock (running dots, dividers, Trash tile).
-        Resources[ThemeKeys.Foreground] = Frozen.Brush(System.Windows.Media.Colors.White);
-        Resources[ThemeKeys.Hairline] = Frozen.Brush(System.Windows.Media.Color.FromArgb(0x33, 0xFF, 0xFF, 0xFF));
-        Resources[ThemeKeys.Pressed] = Frozen.Brush(System.Windows.Media.Color.FromArgb(0x24, 0xFF, 0xFF, 0xFF));
-        Root.SizeChanged += (_, _) => UpdateShape();
+        DockStyle = config.Dock.Style;
+        if (IsGlass)
+        {
+            // Frosted: the blur shows through a transparent fill; dots, dividers and Trash follow the theme.
+            Panel.SetResourceReference(System.Windows.Controls.Border.BackgroundProperty, ThemeKeys.DockGlassFill);
+            Shape.Visibility = Visibility.Collapsed;
+        }
+        else
+        {
+            // Black: always white on black, whatever the Windows theme (like the notch). These override the
+            // theme's colors for everything inside the dock (running dots, dividers, Trash tile).
+            Resources[ThemeKeys.Foreground] = Frozen.Brush(System.Windows.Media.Colors.White);
+            Resources[ThemeKeys.Hairline] = Frozen.Brush(System.Windows.Media.Color.FromArgb(0x33, 0xFF, 0xFF, 0xFF));
+            Resources[ThemeKeys.Pressed] = Frozen.Brush(System.Windows.Media.Color.FromArgb(0x24, 0xFF, 0xFF, 0xFF));
+            Root.SizeChanged += (_, _) => UpdateShape();
+        }
         _config = config;
         _notify = notify;
         _commands = commands;
@@ -101,9 +120,9 @@ public partial class DockWindow : ShellWindow
     }
 
     protected override AppBarEdge Edge => AppBarEdge.Bottom;
-    protected override bool RoundedCorners => false;
-    protected override bool Glass => false;
-    protected override string TintColor => Theme.Palette.Dock;
+    protected override bool RoundedCorners => IsGlass;
+    protected override bool Glass => IsGlass;
+    protected override string TintColor => IsGlass ? Theme.Palette.DockGlass : Theme.Palette.Dock;
 
     private double PanelHeight => PaddingTop + _config.Dock.TileSize + DotRow + PaddingBottom;
 
@@ -310,7 +329,7 @@ public partial class DockWindow : ShellWindow
         double tile = _config.Dock.TileSize;
         Panel.Height = PanelHeight;
         Panel.Padding = new Thickness(PaddingSide, PaddingTop, PaddingSide, PaddingBottom);
-        Panel.Margin = new Thickness(Flare, 0, Flare, 0);   // the flares sit outside the body
+        Panel.Margin = new Thickness(FlareInset, 0, FlareInset, 0);   // black style: the flares sit outside the body
         TrashTile.Width = TrashTile.Height = tile;
         TrashTile.CornerRadius = new CornerRadius(tile * 0.23);   // canvas: 12 px corners on a 52 px tile
         TrashIcon.Width = TrashIcon.Height = tile * 24 / 52;      // canvas: 24 px glyph in a 52 px tile

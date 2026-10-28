@@ -19,7 +19,8 @@ public static class ThemeKeys
     public const string Warning = "Theme.Warning";
     public const string BarFill = "Theme.BarFill";      // window fill for the bar (transparent when the blur supplies it)
     public const string PanelFill = "Theme.PanelFill";  // same for popups and menus
-    public const string DockFill = "Theme.DockFill";    // same for the dock panel
+    public const string DockFill = "Theme.DockFill";    // the black dock's solid shape
+    public const string DockGlassFill = "Theme.DockGlassFill";   // the glass dock's fill (transparent when the blur supplies it)
     public const string LabelFill = "Theme.LabelFill";  // app name above a dock tile: panel color, no blur behind it
     public const string FontFamily = "Theme.FontFamily";
     public const string FontSize = "Theme.FontSize";
@@ -80,6 +81,7 @@ public sealed class ThemeManager : IDisposable
         resources[ThemeKeys.PanelFill] = Blur ? Brushes.Transparent : Brush(Palette.Panel, opaque: true);
         // The dock draws its own solid shape (no glass behind it), so its color is used as given.
         resources[ThemeKeys.DockFill] = Brush(Palette.Dock);
+        resources[ThemeKeys.DockGlassFill] = Blur ? Brushes.Transparent : Brush(Palette.DockGlass, opaque: true);
         resources[ThemeKeys.LabelFill] = Brush(Palette.Panel);
 
         resources[ThemeKeys.FontFamily] = BuildFont(_config.Font.Family);

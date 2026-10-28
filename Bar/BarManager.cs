@@ -111,7 +111,8 @@ public sealed class BarManager : IDisposable
         }
 
         // The dock follows the primary monitor; close it if disabled or the primary changed.
-        if (_dock is not null && (!_config.Dock.Enabled || _dock.DeviceName != primary.DeviceName))
+        // Also rebuilt when dock.style changes: blur and corners are fixed when its native window is created.
+        if (_dock is not null && (!_config.Dock.Enabled || _dock.DeviceName != primary.DeviceName || _dock.DockStyle != _config.Dock.Style))
         {
             Close(_dock);
             _dock = null;

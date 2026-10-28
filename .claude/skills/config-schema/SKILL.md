@@ -37,6 +37,7 @@ Saving it applies within about a second; a broken save never crashes the app.
     "enabled": true, "tileSize": 40, "magnifiedSize": 54,             // tileSize 32..96, magnifiedSize tileSize..128
     "hideTaskbar": true,                                              // hide the Windows taskbar while MacShell runs
     "autoHide": false,                                                // true = slide away; mouse at the bottom edge brings it back
+    "style": "glass",                                                 // "glass" (floating, frosted) or "black" (notch-style shape)
     "numberShortcuts": true,                                          // Win+1…9 open/switch to the Nth dock app
     "pinned": ["File Explorer", "Microsoft Edge", "Settings"]         // Start > All apps names, app IDs, or .exe/.lnk paths
   },
@@ -49,9 +50,9 @@ Saving it applies within about a second; a broken save never crashes the app.
   },
   "colors": {
     "dark":  { "background": "#8C14161E", "panel": "#B81C1E28", "foreground": "#F4F5F7", "muted": "#A9AEBB",
-               "hairline": "#24FFFFFF", "pressed": "#24FFFFFF", "accent": "#5B9DFF", "selection": "#2F6FD6", "warning": "#FF453A", "dock": "#FF000000" },
+               "hairline": "#24FFFFFF", "pressed": "#24FFFFFF", "accent": "#5B9DFF", "selection": "#2F6FD6", "warning": "#FF453A", "dock": "#FF000000", "dockGlass": "#401E202A" },
     "light": { "background": "#8CFFFFFF", "panel": "#C7FFFFFF", "foreground": "#14161B", "muted": "#555B69",
-               "hairline": "#1F000000", "pressed": "#14000000", "accent": "#5B9DFF", "selection": "#2F6FD6", "warning": "#D70015", "dock": "#FF000000" }
+               "hairline": "#1F000000", "pressed": "#14000000", "accent": "#5B9DFF", "selection": "#2F6FD6", "warning": "#D70015", "dock": "#FF000000", "dockGlass": "#4DFFFFFF" }
   }
 }
 ```

@@ -66,6 +66,12 @@ public sealed class DockConfig
     // and show the Dock"). Maximized windows then get the full height. false = always visible, space reserved.
     public bool AutoHide { get; init; } = false;
 
+    // "glass": a floating frosted panel just above the bottom edge (Windows' rounded corners, follows the light /
+    // dark theme, tint `colors.*.dockGlass`). "black": the solid black shape on the edge with the notch's curved
+    // flares (`colors.*.dock`). Glass can't have the flares: Windows blurs whole rectangular windows only.
+    public static readonly string[] KnownStyles = ["glass", "black"];
+    public string Style { get; init; } = "glass";
+
     // Win+1 … Win+9 open or switch to the Nth dock app (Shift = new window), like the taskbar's shortcuts.
     public bool NumberShortcuts { get; init; } = true;
 
@@ -156,26 +162,27 @@ public sealed class ThemeColors
     public string Accent { get; set; } = "";
     public string Selection { get; set; } = "";   // highlighted menu item, today in the calendar
     public string Warning { get; set; } = "";     // low battery
-    public string Dock { get; set; } = "";        // the dock's solid shape (black by default, like the notch)
+    public string Dock { get; set; } = "";        // the dock's solid shape in dock.style "black"
+    public string DockGlass { get; set; } = "";   // the glass tint in dock.style "glass" (frosted, so semi-transparent)
 
     public static ThemeColors DefaultDark() => new()
     {
         Background = "#8C14161E", Panel = "#B81C1E28", Foreground = "#F4F5F7", Muted = "#A9AEBB",
         Hairline = "#24FFFFFF", Pressed = "#24FFFFFF", Accent = "#5B9DFF", Selection = "#2F6FD6",
-        Warning = "#FF453A", Dock = "#FF000000",
+        Warning = "#FF453A", Dock = "#FF000000", DockGlass = "#401E202A",
     };
 
     public static ThemeColors DefaultLight() => new()
     {
         Background = "#8CFFFFFF", Panel = "#C7FFFFFF", Foreground = "#14161B", Muted = "#555B69",
         Hairline = "#1F000000", Pressed = "#14000000", Accent = "#5B9DFF", Selection = "#2F6FD6",
-        Warning = "#D70015", Dock = "#FF000000",
+        Warning = "#D70015", Dock = "#FF000000", DockGlass = "#4DFFFFFF",
     };
 
     public IEnumerable<(string Name, string Value)> All() =>
     [
         ("background", Background), ("panel", Panel), ("foreground", Foreground), ("muted", Muted),
         ("hairline", Hairline), ("pressed", Pressed), ("accent", Accent), ("selection", Selection),
-        ("warning", Warning), ("dock", Dock),
+        ("warning", Warning), ("dock", Dock), ("dockGlass", DockGlass),
     ];
 }
